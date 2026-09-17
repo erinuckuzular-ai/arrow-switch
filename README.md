@@ -10,10 +10,18 @@ between their cameras — with wide shots for cross-talk and long monologues.
 
 ## For users
 
-**Download:** grab `Arrow-Switch-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest).
+**Install (Mac, recommended):** paste this into Terminal. It installs the latest release for
+your user, needs no admin password, and avoids the macOS malware warning:
 
-1. Open `Arrow-Switch-<version>.dmg` and run **Install Arrow Switch.pkg**.
-2. In Premiere: **Window → Extensions → Arrow Switch**.
+```bash
+curl -fsSL https://raw.githubusercontent.com/erinuckuzular-ai/arrow-switch/main/install.sh | bash
+```
+
+Or download `Arrow-Switch-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest)
+and run **Install Arrow Switch.pkg**. Because the installer isn't notarized by Apple yet, macOS
+will say it can't verify it: open **System Settings → Privacy & Security** and click **Open Anyway**.
+
+1. Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 3. Sequence layout: one camera per video track (e.g. V1 wide, V2 host, V3 guest)
    and one mic per audio track (A1 host, A2 guest), all synced.
 4. Pick how cutty (Sleepy / Chatty / Chaotic), hit **LISTEN!**, then **CUT IT!**
