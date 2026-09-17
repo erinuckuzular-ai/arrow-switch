@@ -1,5 +1,5 @@
 #!/bin/bash
-EXT="/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut"
+EXT="/Library/Application Support/Adobe/CEP/extensions/com.arrow.switch"
 
 chmod -R a+rX "$EXT"
 chmod +x "$EXT/bin/ffmpeg" 2>/dev/null

@@ -1,16 +1,16 @@
 /*
- * Arrow AutoCut — panel UI.
+ * Arrow Switch — panel UI.
  * Opened outside Premiere (plain browser), it runs in demo mode with fake data.
  * Demo URLs can start in a given state for screenshots: ?state=empty|analyzing|result|done
  */
 (function () {
   'use strict';
 
-  var Engine = window.AutoCutEngine;
-  var Audio = window.AutoCutAudio;
+  var Engine = window.ArrowSwitchEngine;
+  var Audio = window.ArrowSwitchAudio;
   var IN_PREMIERE = !!window.__adobe_cep__;
   var WINDOW_SEC = Engine.DEFAULTS.windowSec;
-  var STORE_KEY = 'arrow-autocut-settings';
+  var STORE_KEY = 'arrow-switch-settings';
   var DEMO_STATE = IN_PREMIERE ? null : (location.search.match(/state=(\w+)/) || [])[1];
 
   var CHANNEL_COLORS = ['#86c9ff', '#ff9ec9', '#7fdcb3', '#ffd772', '#b49cff', '#ffad85'];
@@ -91,7 +91,8 @@
 
   function loadSettings() {
     try {
-      var saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      // Fall back to settings saved before the rename.
+      var saved = JSON.parse(localStorage.getItem(STORE_KEY) || localStorage.getItem('arrow-autocut-settings') || 'null');
       if (saved) {
         Object.assign(state.settings, saved.settings);
         state.vibe = saved.vibe;
@@ -298,7 +299,7 @@
   }
 
   // Top: the cut (one colour per camera). Below: one thin lane per speaker showing
-  // when AutoCut heard them talking, so a wrong cut is easy to spot and explain.
+  // when Arrow Switch heard them talking, so a wrong cut is easy to spot and explain.
   var LANE_H = 6, LANE_GAP = 2;
   function drawPreview(segments, duration) {
     var canvas = $('preview');
@@ -470,11 +471,11 @@
       .then(function () {
         $('analyze').hidden = true;
         if (IN_PREMIERE) {
-          if (!Audio) throw new Error('Node.js is off for this panel, so I can’t read audio. Reinstall AutoCut and restart Premiere.');
+          if (!Audio) throw new Error('Node.js is off for this panel, so I can’t read audio. Reinstall Arrow Switch and restart Premiere.');
           var extPath = '';
           try { extPath = extensionPath(); } catch (e) { /* fall back to the standard install folders */ }
           ffmpeg = Audio.findFfmpeg(extPath);
-          if (!ffmpeg) throw new Error('I can’t find my audio decoder (looked in ' + (extPath || 'the install folder') + '/bin). Reinstall AutoCut.');
+          if (!ffmpeg) throw new Error('I can’t find my audio decoder (looked in ' + (extPath || 'the install folder') + '/bin). Reinstall Arrow Switch.');
         }
         return callHost('AC_getAudioClips', JSON.stringify(needed));
       })
@@ -529,7 +530,7 @@
 
     var payload = {
       sourceId: state.seq.id,
-      newName: state.seq.name + ' – AutoCut',
+      newName: state.seq.name + ' – Arrow Switch',
       mode: state.settings.deleteUnused ? 'delete' : 'disable',
       tracks: tracks,
       segments: frames
@@ -661,7 +662,7 @@
       return { ok: true, tracks: JSON.parse(json).map(function (i) { return { index: i, clips: [{}, {}, {}, {}] }; }) };
     },
     AC_applyEdit: function () {
-      return { ok: true, name: 'EP 142 Multicam – AutoCut', saved: true, originalUntouched: true };
+      return { ok: true, name: 'EP 142 Multicam – Arrow Switch', saved: true, originalUntouched: true };
     },
     analyze: function (tracks, n, onProgress, job) {
       var total = 3312 * tracks.length, done = 0;

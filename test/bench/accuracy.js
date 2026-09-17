@@ -112,7 +112,7 @@ function score(segments, truth, durationSec) {
 }
 
 async function main() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-bench-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arrow-switch-bench-'));
   const only = process.env.SCENARIO;
   const rows = [];
   try {

@@ -1,7 +1,7 @@
-# Arrow AutoCut
+# Arrow Switch
 
 Automatic multicam podcast editing for Adobe Premiere Pro (2022 and newer).
-AutoCut listens to each person's mic, works out who is talking, and cuts
+Arrow Switch listens to each person's mic, works out who is talking, and cuts
 between their cameras — with wide shots for cross-talk and long monologues.
 
 | Set up | Listening | Preview | Done |
@@ -10,18 +10,18 @@ between their cameras — with wide shots for cross-talk and long monologues.
 
 ## For users
 
-**Download:** grab `Arrow-AutoCut-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-autocut/releases/latest).
+**Download:** grab `Arrow-Switch-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest).
 
-1. Open `Arrow-AutoCut-<version>.dmg` and run **Install Arrow AutoCut.pkg**.
-2. In Premiere: **Window → Extensions → Arrow AutoCut**.
+1. Open `Arrow-Switch-<version>.dmg` and run **Install Arrow Switch.pkg**.
+2. In Premiere: **Window → Extensions → Arrow Switch**.
 3. Sequence layout: one camera per video track (e.g. V1 wide, V2 host, V3 guest)
    and one mic per audio track (A1 host, A2 guest), all synced.
 4. Pick how cutty (Sleepy / Chatty / Chaotic), hit **LISTEN!**, then **CUT IT!**
 
-AutoCut saves your project, then duplicates your sequence (`<name> – AutoCut`, numbered if that name is taken) and disables the unused
+Arrow Switch saves your project, then duplicates your sequence (`<name> – Arrow Switch`, numbered if that name is taken) and disables the unused
 angle on each cut, so every shot can be flipped back on by hand.
 
-Windows: install `Arrow AutoCut.zxp` with a ZXP installer and put `ffmpeg.exe`
+Windows: install `Arrow Switch.zxp` with a ZXP installer and put `ffmpeg.exe`
 in the extension's `bin` folder.
 
 ## For developers
@@ -58,7 +58,7 @@ holding another `engine.js` + `audio.js` to compare versions.
 ./build.sh
 ```
 
-Output: `dist/Arrow-AutoCut-<version>.dmg`. The first run downloads a static
+Output: `dist/Arrow-Switch-<version>.dmg`. The first run downloads a static
 universal ffmpeg and Adobe's ZXPSignCmd into `.cache/`, and creates a
 self-signed ZXP certificate in `certs/` (keep it; reuse it for updates).
 
@@ -68,10 +68,10 @@ Unsigned installers make macOS say the developer can't be verified (users can
 right-click → Open). To remove that you need an Apple Developer account:
 
 ```bash
-xcrun notarytool store-credentials autocut-notary --apple-id you@example.com --team-id TEAMID
+xcrun notarytool store-credentials arrow-switch-notary --apple-id you@example.com --team-id TEAMID
 INSTALLER_SIGN_ID="Developer ID Installer: Your Name (TEAMID)" \
 APP_SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
-NOTARY_PROFILE=autocut-notary \
+NOTARY_PROFILE=arrow-switch-notary \
 ./build.sh
 ```
 
@@ -81,7 +81,7 @@ Enable unsigned extensions once, then symlink the source folder:
 
 ```bash
 defaults write com.adobe.CSXS.12 PlayerDebugMode 1
-ln -s "$PWD/extension" ~/Library/Application\ Support/Adobe/CEP/extensions/com.arrow.autocut
+ln -s "$PWD/extension" ~/Library/Application\ Support/Adobe/CEP/extensions/com.arrow.switch
 ```
 
 Restart Premiere. Debug with Chrome at http://localhost:8088 (see `extension/.debug`).
@@ -89,5 +89,10 @@ Preview just the UI in a browser: `python3 -m http.server -d extension` (demo mo
 
 ### Licensing note
 
-The bundled ffmpeg build is GPL. Selling AutoCut with it bundled requires
-complying with the GPL (or switching to an LGPL-only ffmpeg build).
+The bundled ffmpeg is a GPLv3 build. Arrow Switch runs it as a separate program, and every
+release ships `licenses/` (GPL text + `FFMPEG-NOTICE.txt`) in the extension and the DMG.
+`build.sh` also drops the ffmpeg source and its build scripts into `dist/`: **attach
+`ffmpeg-9.0.1.tar.xz` and `ffmpeg-build-script.tar.gz` to every GitHub release** next to the DMG.
+If you swap in a different ffmpeg build, update `FFMPEG_VERSION` in `build.sh` and the notice.
+
+Fonts: Lilita One and Nunito, SIL Open Font License 1.1 (`extension/fonts/FONTS-LICENSE.txt`).
