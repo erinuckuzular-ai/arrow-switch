@@ -1,5 +1,5 @@
 /*
- * Arrow AutoCut — audio loudness extraction.
+ * Arrow Switch — audio loudness extraction.
  *
  * Decodes each mic's source audio with the bundled ffmpeg and turns it into
  * a dB-per-window array laid out on the sequence timeline.
@@ -17,7 +17,7 @@
   var api = nodeRequire ? factory(nodeRequire) : null;   // null when previewed in a plain browser
   // Premiere panels run with Node enabled, so `module` exists there too: set both.
   if (typeof module === 'object' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') window.AutoCutAudio = api;
+  if (typeof window !== 'undefined') window.ArrowSwitchAudio = api;
 })(typeof self !== 'undefined' ? self : this, function (req) {
   'use strict';
 
@@ -41,10 +41,10 @@
     var home = process.env.HOME || process.env.USERPROFILE || '';
     var candidates = [
       extensionPath && path.join(extensionPath, 'bin', exe),
-      '/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg',
-      home && path.join(home, 'Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg'),
-      process.env.APPDATA && path.join(process.env.APPDATA, 'Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg.exe'),
-      process.env.ProgramFiles && path.join(process.env['ProgramFiles(x86)'] || process.env.ProgramFiles, 'Common Files/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg.exe'),
+      '/Library/Application Support/Adobe/CEP/extensions/com.arrow.switch/bin/ffmpeg',
+      home && path.join(home, 'Library/Application Support/Adobe/CEP/extensions/com.arrow.switch/bin/ffmpeg'),
+      process.env.APPDATA && path.join(process.env.APPDATA, 'Adobe/CEP/extensions/com.arrow.switch/bin/ffmpeg.exe'),
+      process.env.ProgramFiles && path.join(process.env['ProgramFiles(x86)'] || process.env.ProgramFiles, 'Common Files/Adobe/CEP/extensions/com.arrow.switch/bin/ffmpeg.exe'),
       '/opt/homebrew/bin/ffmpeg',
       '/usr/local/bin/ffmpeg',
       '/usr/bin/ffmpeg'
@@ -57,9 +57,9 @@
 
   function defaultCacheDir() {
     var home = os.homedir();
-    if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', 'Arrow AutoCut');
-    if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA || home, 'Arrow AutoCut', 'Cache');
-    return path.join(home, '.cache', 'arrow-autocut');
+    if (process.platform === 'darwin') return path.join(home, 'Library', 'Caches', 'Arrow Switch');
+    if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA || home, 'Arrow Switch', 'Cache');
+    return path.join(home, '.cache', 'arrow-switch');
   }
 
   // A cancellable batch of ffmpeg processes.
