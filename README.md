@@ -10,6 +10,8 @@ between their cameras — with wide shots for cross-talk and long monologues.
 
 ## For users
 
+**Download:** grab `Arrow-AutoCut-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-autocut/releases/latest).
+
 1. Open `Arrow-AutoCut-<version>.dmg` and run **Install Arrow AutoCut.pkg**.
 2. In Premiere: **Window → Extensions → Arrow AutoCut**.
 3. Sequence layout: one camera per video track (e.g. V1 wide, V2 host, V3 guest)
