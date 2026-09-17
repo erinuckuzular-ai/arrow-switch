@@ -89,6 +89,8 @@ Preview just the UI in a browser: `python3 -m http.server -d extension` (demo mo
 
 ### Licensing note
 
+Arrow Switch's own code is MIT licensed (see `LICENSE`). Bundled third-party parts keep their own licenses:
+
 The bundled ffmpeg is a GPLv3 build. Arrow Switch runs it as a separate program, and every
 release ships `licenses/` (GPL text + `FFMPEG-NOTICE.txt`) in the extension and the DMG.
 `build.sh` also drops the ffmpeg source and its build scripts into `dist/`: **attach
