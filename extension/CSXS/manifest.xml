@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.arrow.switch" ExtensionBundleVersion="1.2.1" ExtensionBundleName="Arrow Switch"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.arrow.switch" ExtensionBundleVersion="1.3.0" ExtensionBundleName="Arrow Switch"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.arrow.switch.panel" Version="1.2.1" />
+    <Extension Id="com.arrow.switch.panel" Version="1.3.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

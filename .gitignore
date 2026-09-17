@@ -4,3 +4,4 @@ dist/
 certs/
 .DS_Store
 extension/bin/
+.claude/
