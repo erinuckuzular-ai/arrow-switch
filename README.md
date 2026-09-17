@@ -1,12 +1,13 @@
 # Arrow Switch
 
 Automatic multicam podcast editing for Adobe Premiere Pro (2022 and newer).
-Arrow Switch listens to each person's mic, works out who is talking, and cuts
-between their cameras — with wide shots for cross-talk and long monologues.
+Arrow Switch syncs everyone's mic to the cameras, listens to who is talking, and cuts
+between their cameras — with wide shots for cross-talk and long monologues. It is run by a
+microphone with a beer, and it will be rude to you (there's a nice mode).
 
-| Set up | Listening | Preview | Done |
+| Set up + sync | Cut | Dark mode | Multicam |
 |---|---|---|---|
-| ![Empty state](docs/screenshots/empty.png) | ![Analyzing](docs/screenshots/analyzing.png) | ![Result](docs/screenshots/result.png) | ![Done](docs/screenshots/done.png) |
+| ![Set up](docs/screenshots/setup.png) | ![Cut](docs/screenshots/cut.png) | ![Dark](docs/screenshots/dark.png) | ![Multicam](docs/screenshots/multicam.png) |
 
 ## For users
 
@@ -21,13 +22,29 @@ Or download `Arrow-Switch-<version>.dmg` from the [latest release](https://githu
 and run **Install Arrow Switch.pkg**. Because the installer isn't notarized by Apple yet, macOS
 will say it can't verify it: open **System Settings → Privacy & Security** and click **Open Anyway**.
 
-1. Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
-3. Sequence layout: one camera per video track (e.g. V1 wide, V2 host, V3 guest)
-   and one mic per audio track (A1 host, A2 guest), all synced.
-4. Pick how cutty (Sleepy / Chatty / Chaotic), hit **LISTEN!**, then **CUT IT!**
+Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 
-Arrow Switch saves your project, then duplicates your sequence (`<name> – Arrow Switch`, numbered if that name is taken) and disables the unused
-angle on each cut, so every shot can be flipped back on by hand.
+**Set up a new episode** (Set up tab)
+1. Drop in the camera files (with their master audio) and each person's mic file. Arrow Switch
+   works out which is which; set the wide shot and who each camera shows.
+2. **SYNC & BUILD**: it syncs every file by audio, imports them into a bin, colour-labels each
+   person's clips, mutes the extra camera audio and builds the sequence ready to cut.
+
+**Cut it** (Cut tab)
+1. Check who's who (it guesses from the tracks).
+2. Pick a preset (Sleepy / Chatty / Chaotic) or tweak the knobs and **save your own**.
+3. Pick how you want it:
+   - **Hide**: razors each angle and disables what isn't on screen.
+   - **Razor**: same, but deletes unused angles.
+   - **Fast cuts**: rebuilds the edit via FCP XML in one import. Real cuts, much faster.
+   - **Multicam**: for sequences cut from a multicam clip. It reads the angles and mics inside
+     the multicam, razors the clip at every switch and adds a marker naming the angle to pick
+     (Premiere doesn't let scripts switch multicam angles).
+4. **LISTEN!**, check the preview (click it to jump there in Premiere), then **CUT IT!**
+
+Arrow Switch always saves your project first and works on a new sequence
+(`<name> – Arrow Switch`); your original is never changed. ⌘/Ctrl+Enter does the next step.
+Theme (auto/light/dark) and tone (mean/nice) are the two buttons top right.
 
 Windows: install `Arrow Switch.zxp` with a ZXP installer and put `ffmpeg.exe`
 in the extension's `bin` folder.
@@ -39,9 +56,13 @@ extension/            the CEP panel that ships to users
   CSXS/manifest.xml   extension manifest (bump ExtensionBundleVersion to release)
   index.html, css/    panel UI
   js/engine.js        speaker detection + edit decisions (pure JS, unit tested)
-  js/audio.js         ffmpeg decoding -> loudness per 100 ms
+  js/audio.js         ffmpeg decoding -> loudness per window, caching, media probing
+  js/sync.js          audio sync: finds each file's offset against a reference camera
+  js/xmlcut.js        Fast cuts: rewrites an exported FCP XML sequence into real cuts
+  js/presets.js       built-in + saved presets
+  js/copy.js          everything the mascot says, mean and nice
   js/main.js          UI logic; runs in demo mode when opened in a normal browser
-                      (?state=empty|analyzing|result|done jumps to a screen)
+                      (?state=empty|analyzing|result|done|setup|syncing|synced, &theme=dark, &mc=1, &tone=nice)
   fonts/              Lilita One + Nunito (SIL OFL), bundled so it works offline
   jsx/host.jsx        ExtendScript: reads the sequence, clones it, razors, disables clips
 installer/            pkg scripts, installer pages, uninstaller, read me
