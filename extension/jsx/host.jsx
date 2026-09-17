@@ -77,6 +77,7 @@ function AC_getAudioClips(indexesJson) {
       var clips = [];
       for (var c = 0; c < track.clips.numItems; c++) {
         var clip = track.clips[c];
+        if (clip.disabled) continue;   // switched-off audio isn't part of the conversation
         var mediaPath = clip.projectItem ? clip.projectItem.getMediaPath() : '';
         if (!mediaPath) {
           return { ok: false, error: 'Clip "' + clip.name + '" on A' + (indexes[i] + 1) + ' is nested, merged or multicam. Put the raw mic files on the speaker tracks.' };
@@ -95,8 +96,8 @@ function AC_getAudioClips(indexesJson) {
   });
 }
 
-function AC_timecode(seq, frame) {
-  var settings = seq.getSettings();
+// getSettings() is slow in ExtendScript: callers fetch it once and pass it in.
+function AC_timecode(seq, settings, frame) {
   var t = new Time();
   t.ticks = String(frame * Number(seq.timebase));
   try {
@@ -124,30 +125,54 @@ function AC_applyEdit(payloadJson) {
       return { ok: false, error: 'The active sequence changed since analysis. Re-analyze first.' };
     }
 
-    // Work on a duplicate so the original is never touched.
-    var before = {};
-    for (var i = 0; i < app.project.sequences.numSequences; i++) before[app.project.sequences[i].sequenceID] = true;
+    // Save first, so the original sequence is safely on disk before anything is cut.
+    var saved = false;
+    try { app.project.save(); saved = true; } catch (e) { /* unsaved new project: carry on, original is still untouched */ }
+    var originalPrint = AC_fingerprint(source, p.tracks);
+
+    // Work on a duplicate with its own unique name; the original is never cut.
+    var names = {}, before = {};
+    for (var i = 0; i < app.project.sequences.numSequences; i++) {
+      before[app.project.sequences[i].sequenceID] = true;
+      names[app.project.sequences[i].name] = true;
+    }
+    var newName = p.newName, n = 2;
+    while (names[newName]) newName = p.newName + ' ' + (n++);
+
     source.clone();
     var seq = null;
     for (var j = 0; j < app.project.sequences.numSequences; j++) {
       if (!before[app.project.sequences[j].sequenceID]) seq = app.project.sequences[j];
     }
-    if (!seq) return { ok: false, error: 'Could not duplicate the sequence.' };
-    seq.name = p.newName;
+    if (!seq || seq.sequenceID === source.sequenceID) return { ok: false, error: 'Could not duplicate the sequence, so nothing was cut. Your original is untouched.' };
+    seq.name = newName;
     app.project.openSequence(seq.sequenceID);
     app.project.activeSequence = seq;
 
+    // Razoring goes through QE, which only works on the active sequence: make sure that is the copy.
     app.enableQE();
     var qeSeq = qe.project.getActiveSequence();
-    if (!qeSeq || qeSeq.name !== seq.name) return { ok: false, error: 'Could not activate the new sequence for cutting.' };
+    if (!qeSeq || qeSeq.name !== newName || newName === source.name || app.project.activeSequence.sequenceID !== seq.sequenceID) {
+      return { ok: false, error: 'Could not switch to the copy “' + newName + '”, so nothing was cut. Your original is untouched.' };
+    }
 
     var fps = AC_fps(seq);
+    var settings = seq.getSettings();
     var segs = p.segments;
     var razors = 0;
+    var qeTracks = {}, involved = {};
+    for (var t = 0; t < p.tracks.length; t++) {
+      qeTracks[p.tracks[t]] = qeSeq.getVideoTrackAt(p.tracks[t]);
+      involved[p.tracks[t]] = true;
+    }
+    // Only the outgoing and incoming angles change at a cut; every other track keeps
+    // the same on/off state, so razoring it would just add work and timeline clutter.
     for (var s = 1; s < segs.length; s++) {
-      var tc = AC_timecode(seq, segs[s].startFrame);
-      for (var t = 0; t < p.tracks.length; t++) {
-        qeSeq.getVideoTrackAt(p.tracks[t]).razor(tc);
+      var tc = AC_timecode(seq, settings, segs[s].startFrame);
+      var pair = [segs[s - 1].cam, segs[s].cam];
+      for (var q = 0; q < pair.length; q++) {
+        if (!involved[pair[q]] || (q === 1 && pair[1] === pair[0])) continue;
+        qeTracks[pair[q]].razor(tc);
         razors++;
       }
     }
@@ -172,7 +197,32 @@ function AC_applyEdit(payloadJson) {
       for (var r = toRemove.length - 1; r >= 0; r--) toRemove[r].remove(false, false);
     }
 
-    return { ok: true, name: seq.name, razors: razors, hidden: hidden, shown: shown };
+    var untouched = AC_fingerprint(source, p.tracks) === originalPrint;
+    return { ok: true, name: seq.name, razors: razors, hidden: hidden, shown: shown, saved: saved, originalUntouched: untouched };
+  });
+}
+
+// Clip layout of the given video tracks, to prove the original wasn't changed.
+function AC_fingerprint(seq, trackIndexes) {
+  var parts = [];
+  for (var t = 0; t < trackIndexes.length; t++) {
+    var track = seq.videoTracks[trackIndexes[t]];
+    if (!track) continue;
+    var clips = track.clips;
+    parts.push(trackIndexes[t] + ':' + clips.numItems);
+    for (var c = 0; c < clips.numItems; c++) {
+      parts.push(clips[c].start.ticks + '-' + clips[c].end.ticks + (clips[c].disabled ? 'd' : ''));
+    }
+  }
+  return parts.join('|');
+}
+
+function AC_setPlayhead(seconds) {
+  return AC_run(function () {
+    var seq = app.project.activeSequence;
+    if (!seq) return { ok: false, error: 'Open a sequence first.' };
+    seq.setPlayerPosition(String(Math.round(Number(seconds) * AC_TICKS_PER_SECOND)));
+    return { ok: true };
   });
 }
 

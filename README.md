@@ -18,7 +18,7 @@ between their cameras — with wide shots for cross-talk and long monologues.
    and one mic per audio track (A1 host, A2 guest), all synced.
 4. Pick how cutty (Sleepy / Chatty / Chaotic), hit **LISTEN!**, then **CUT IT!**
 
-AutoCut duplicates your sequence (`<name> – AutoCut`) and disables the unused
+AutoCut saves your project, then duplicates your sequence (`<name> – AutoCut`, numbered if that name is taken) and disables the unused
 angle on each cut, so every shot can be flipped back on by hand.
 
 Windows: install `Arrow AutoCut.zxp` with a ZXP installer and put `ffmpeg.exe`
@@ -40,6 +40,17 @@ installer/            pkg scripts, installer pages, uninstaller, read me
 test/                 node --test suites
 build.sh              tests -> universal ffmpeg -> signed ZXP -> .pkg -> .dmg
 ```
+
+### Accuracy benchmark
+
+```bash
+node test/bench/accuracy.js
+```
+
+Generates synthetic podcasts with known answers (mic bleed, a quiet guest, rumble,
+backchannels, cross-talk, a two-channel recorder) and scores the engine: time on the
+right camera, wrong shots, missed turns, cut timing and listen speed. Pass a folder
+holding another `engine.js` + `audio.js` to compare versions.
 
 ### Build the DMG
 
