@@ -163,6 +163,33 @@ function AC_getSequenceInfo() {
   });
 }
 
+// Cheap check the panel polls to follow whatever sequence the editor is looking at.
+function AC_getActiveSequenceId() {
+  return AC_run(function () {
+    var seq = app.project && app.project.activeSequence;
+    return { ok: true, id: seq ? seq.sequenceID : null, name: seq ? seq.name : null };
+  });
+}
+
+function AC_openSequence(id) {
+  return AC_run(function () {
+    var seq = AC_activate(id);
+    if (!seq) return { ok: false, error: 'That sequence isn’t in the project any more.' };
+    return { ok: true, name: seq.name };
+  });
+}
+
+// Undo for the panel's last run: only ever called with a sequence Arrow Switch created.
+function AC_deleteSequence(id) {
+  return AC_run(function () {
+    var seq = AC_sequenceById(id);
+    if (!seq) return { ok: false, error: 'That sequence is already gone.' };
+    var name = seq.name;
+    if (!app.project.deleteSequence(seq)) return { ok: false, error: 'Premiere wouldn’t delete “' + name + '”.' };
+    return { ok: true, name: name };
+  });
+}
+
 function AC_getAudioClips(indexesJson) {
   return AC_run(function () {
     var seq = app.project.activeSequence;
@@ -281,7 +308,7 @@ function AC_applyEdit(payloadJson) {
     }
 
     var untouched = AC_fingerprint(source, p.tracks) === originalPrint;
-    return { ok: true, name: seq.name, razors: razors, hidden: hidden, shown: shown, saved: saved, originalUntouched: untouched };
+    return { ok: true, name: seq.name, sequenceId: seq.sequenceID, razors: razors, hidden: hidden, shown: shown, saved: saved, originalUntouched: untouched };
   });
 }
 
@@ -452,7 +479,7 @@ function AC_importXml(payloadJson) {
     if (!seq) return { ok: false, error: 'The XML imported but no new sequence appeared.' };
     seq.name = AC_uniqueSequenceName(p.name, seq.sequenceID);
     app.project.openSequence(seq.sequenceID);
-    return { ok: true, name: seq.name };
+    return { ok: true, name: seq.name, sequenceId: seq.sequenceID };
   });
 }
 

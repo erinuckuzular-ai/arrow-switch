@@ -21,8 +21,7 @@
       <radialGradient id="gMetal" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#d9dcea"/><stop offset="1" stop-color="#8f94ad"/></radialGradient>
       <radialGradient id="gHandle" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#8b78b8"/><stop offset="1" stop-color="#3b2a55"/></radialGradient>
       <radialGradient id="gGold" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff0b8"/><stop offset="1" stop-color="#f0a93b"/></radialGradient>
-      <linearGradient id="gBeer" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd35c"/><stop offset="1" stop-color="#e88a1a"/></linearGradient>
-      <radialGradient id="gPink" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#ffd6e8"/><stop offset="1" stop-color="#f26aa8"/></radialGradient>
+            <radialGradient id="gPink" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#ffd6e8"/><stop offset="1" stop-color="#f26aa8"/></radialGradient>
       <pattern id="pGrille" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <rect width="6" height="6" fill="none"/><path d="M0 0 H6 M0 0 V6" stroke="#5b5f78" stroke-width="1.1" opacity=".55"/>
       </pattern>
@@ -38,38 +37,31 @@
       </g>
       <g class="body">
         <path class="cable" d="M60 120 C58 134 86 138 96 126 S118 118 116 132"/>
-        <!-- arm + beer, lowered -->
-        <g class="beer-arm not-done not-error">
-          <path class="arm" d="M42 76 Q26 84 26 96"/>
-          <g class="beer">
-            <path class="mug-handle" d="M8 96 q-9 0 -9 9 q0 9 9 9"/>
-            <rect class="mug" x="8" y="90" width="26" height="30" rx="6"/>
-            <path class="bubbles" d="M16 108 v4 M24 100 v3 M27 111 v3"/>
-            <path class="foam" d="M5 92 q2 -9 11 -7 q4 -7 12 -2 q9 -3 9 7 q-2 5 -8 3 q-6 4 -12 0 q-7 3 -12 -1z"/>
-          </g>
+        <!-- left arm: waves when idle, up for the win, flops on error -->
+        <g class="arm-left not-done not-error">
+          <path class="arm" d="M42 76 Q24 70 18 54"/>
+          <circle class="hand" cx="17" cy="51" r="6"/>
         </g>
-        <!-- arm + beer, raised for cheers -->
-        <g class="beer-arm raised only-done">
-          <path class="arm" d="M80 74 Q100 60 102 40"/>
-          <g class="beer" transform="rotate(18 106 30)">
-            <path class="mug-handle" d="M118 26 q9 0 9 9 q0 9 -9 9"/>
-            <rect class="mug" x="92" y="20" width="26" height="30" rx="6"/>
-            <path class="foam" d="M89 22 q2 -9 11 -7 q4 -7 12 -2 q9 -3 9 7 q-2 5 -8 3 q-6 4 -12 0 q-7 3 -12 -1z"/>
-            <path class="splash" d="M96 6 q2 -6 5 0 M110 2 q3 -6 5 0 M120 12 q4 -4 5 2"/>
-          </g>
+        <g class="only-done">
+          <path class="arm" d="M42 74 Q20 56 16 30"/>
+          <circle class="hand" cx="16" cy="27" r="6"/>
+          <path class="arm" d="M78 74 Q100 56 104 30"/>
+          <circle class="hand" cx="104" cy="27" r="6"/>
         </g>
-        <!-- spilled beer -->
         <g class="only-error">
-          <path class="arm" d="M42 76 Q24 90 16 104"/>
-          <g transform="rotate(-100 18 116)"><rect class="mug" x="6" y="104" width="26" height="30" rx="6"/></g>
-          <path class="puddle" d="M-4 128 q14 -8 30 -2 q16 -5 26 3 q-4 6 -28 4 q-22 3 -28 -5z"/>
+          <path class="arm" d="M42 78 Q28 92 24 106"/>
+          <circle class="hand" cx="24" cy="108" r="6"/>
+          <g class="dizzy"><path d="M40 -6 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3z"/><path d="M80 -10 l2 -4 l2 4 l4 2 l-4 2 l-2 4 l-2 -4 l-4 -2z"/></g>
         </g>
-        <path class="arm other not-done" d="M78 76 Q96 84 98 98"/>
-        <circle class="hand not-done" cx="98" cy="100" r="5"/>
+        <path class="arm other not-done not-error" d="M78 76 Q96 84 98 98"/>
+        <circle class="hand not-done not-error" cx="98" cy="100" r="5"/>
+        <path class="arm other only-error" d="M78 78 Q92 92 96 106"/>
+        <circle class="hand only-error" cx="96" cy="108" r="6"/>
         <g class="scissors only-cut">
           <circle cx="104" cy="104" r="5"/><circle cx="96" cy="112" r="5"/>
           <path d="M100 100 L116 84 M101 108 L118 94"/>
         </g>
+        <ellipse class="floor-shadow" cx="60" cy="136" rx="30" ry="5"/>
 
         <path class="handle" d="M44 72 L50 118 Q60 126 70 118 L76 72 Z"/>
         <rect class="switch" x="55" y="90" width="10" height="14" rx="4"/>
@@ -117,7 +109,7 @@
 
     <div class="corner-tools">
       <button id="themeBtn" class="icon-btn" title="Theme: auto / light / dark" aria-label="Change theme">◐</button>
-      <button id="toneBtn" class="icon-btn" title="Tone: mean or nice" aria-label="Change tone">🍺</button>
+      <button id="toneBtn" class="icon-btn" title="Tone: mean or nice" aria-label="Change tone">😈</button>
     </div>
   </header>
 
@@ -153,8 +145,7 @@
     <section class="sticker">
       <h2><span class="num">3</span> Sync it</h2>
       <ul id="syncList" class="sync-list" hidden></ul>
-      <button id="buildBtn" class="big go-violet">SYNC &amp; BUILD</button>
-      <button id="buildCancel" class="link" hidden>stop</button>
+      <p class="desc">Hit <b>SYNC &amp; BUILD</b> below when the list looks right.</p>
     </section>
   </section>
 
@@ -176,8 +167,9 @@
     </section>
 
     <main id="app" hidden>
-      <section class="sticker">
-        <h2><span class="num">1</span> Who’s who?</h2>
+      <section class="sticker fold" id="whoCard">
+        <button class="fold-head" aria-expanded="true"><h2><span class="num">1</span> Who’s who?</h2><span class="fold-sum" id="whoSum"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="fold-body">
         <span id="autoTag" class="scribble" hidden>I guessed these!</span>
         <div id="speakers"></div>
         <div class="wide-row">
@@ -186,10 +178,12 @@
           <select id="wideCam" aria-label="Wide shot camera"></select>
         </div>
         <button id="addSpeaker" class="dashed">+ another person</button>
+        </div>
       </section>
 
-      <section class="sticker">
-        <h2><span class="num">2</span> How cutty?</h2>
+      <section class="sticker fold" id="howCard">
+        <button class="fold-head" aria-expanded="true"><h2><span class="num">2</span> How cutty?</h2><span class="fold-sum" id="howSum"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="fold-body">
         <div id="presets" class="presets" role="radiogroup" aria-label="Presets"></div>
         <p id="pacingDesc" class="desc"></p>
         <div id="savePresetRow" class="save-row" hidden>
@@ -213,6 +207,7 @@
             <input type="range" id="leadInSec" min="0" max="1" step="0.05"></label>
           <label class="switch-row"><input type="checkbox" id="overlapToWide"><span class="sw"></span> Talking over each other → wide</label>
         </details>
+        </div>
       </section>
 
       <section class="sticker">
@@ -243,13 +238,39 @@
           <div id="legend" class="legend"></div>
         </div>
 
-        <button id="analyze" class="big">LISTEN!</button>
-        <button id="apply" class="big go" hidden>CUT IT!</button>
-        <button id="reanalyze" class="link" hidden>listen again</button>
+        <p id="readyHint" class="desc">Hit <b>LISTEN!</b> below and I’ll work out who’s talking.</p>
+        <div id="lastRun" class="last-run" hidden>
+          <div class="last-run-text"><b>Last cut</b><span id="lastRunName"></span></div>
+          <button id="lastRunShow" class="pill solid">Show it</button>
+          <button id="lastRunUndo" class="pill">Undo</button>
+        </div>
       </section>
     </main>
   </section>
 
+  <!-- Always-visible actions: whatever the next step is lives here. -->
+  <div class="dock empty" id="dock" data-tab="cut">
+    <div class="dock-inner">
+      <div class="dock-cut">
+        <button id="analyze" class="big">LISTEN!</button>
+        <button id="apply" class="big go" hidden>CUT IT!</button>
+        <div class="dock-row">
+          <span id="dockInfo" class="dock-info"></span>
+          <span id="cutDelta" class="delta" hidden></span>
+          <button id="reanalyze" class="link" hidden>listen again</button>
+        </div>
+      </div>
+      <div class="dock-setup">
+        <button id="buildBtn" class="big go-violet">SYNC &amp; BUILD</button>
+        <div class="dock-row">
+          <span id="setupInfo" class="dock-info">Add your camera and mic files first</span>
+          <button id="buildCancel" class="link" hidden>stop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <div id="confetti" class="confetti" aria-hidden="true"></div>
 
   <script src="js/engine.js"></script>
