@@ -77,6 +77,7 @@ function AC_getAudioClips(indexesJson) {
       var clips = [];
       for (var c = 0; c < track.clips.numItems; c++) {
         var clip = track.clips[c];
+        if (clip.disabled) continue;   // switched-off audio isn't part of the conversation
         var mediaPath = clip.projectItem ? clip.projectItem.getMediaPath() : '';
         if (!mediaPath) {
           return { ok: false, error: 'Clip "' + clip.name + '" on A' + (indexes[i] + 1) + ' is nested, merged or multicam. Put the raw mic files on the speaker tracks.' };
@@ -95,8 +96,8 @@ function AC_getAudioClips(indexesJson) {
   });
 }
 
-function AC_timecode(seq, frame) {
-  var settings = seq.getSettings();
+// getSettings() is slow in ExtendScript: callers fetch it once and pass it in.
+function AC_timecode(seq, settings, frame) {
   var t = new Time();
   t.ticks = String(frame * Number(seq.timebase));
   try {
@@ -142,12 +143,22 @@ function AC_applyEdit(payloadJson) {
     if (!qeSeq || qeSeq.name !== seq.name) return { ok: false, error: 'Could not activate the new sequence for cutting.' };
 
     var fps = AC_fps(seq);
+    var settings = seq.getSettings();
     var segs = p.segments;
     var razors = 0;
+    var qeTracks = {}, involved = {};
+    for (var t = 0; t < p.tracks.length; t++) {
+      qeTracks[p.tracks[t]] = qeSeq.getVideoTrackAt(p.tracks[t]);
+      involved[p.tracks[t]] = true;
+    }
+    // Only the outgoing and incoming angles change at a cut; every other track keeps
+    // the same on/off state, so razoring it would just add work and timeline clutter.
     for (var s = 1; s < segs.length; s++) {
-      var tc = AC_timecode(seq, segs[s].startFrame);
-      for (var t = 0; t < p.tracks.length; t++) {
-        qeSeq.getVideoTrackAt(p.tracks[t]).razor(tc);
+      var tc = AC_timecode(seq, settings, segs[s].startFrame);
+      var pair = [segs[s - 1].cam, segs[s].cam];
+      for (var q = 0; q < pair.length; q++) {
+        if (!involved[pair[q]] || (q === 1 && pair[1] === pair[0])) continue;
+        qeTracks[pair[q]].razor(tc);
         razors++;
       }
     }
@@ -173,6 +184,15 @@ function AC_applyEdit(payloadJson) {
     }
 
     return { ok: true, name: seq.name, razors: razors, hidden: hidden, shown: shown };
+  });
+}
+
+function AC_setPlayhead(seconds) {
+  return AC_run(function () {
+    var seq = app.project.activeSequence;
+    if (!seq) return { ok: false, error: 'Open a sequence first.' };
+    seq.setPlayerPosition(String(Math.round(Number(seconds) * AC_TICKS_PER_SECOND)));
+    return { ok: true };
   });
 }
 
