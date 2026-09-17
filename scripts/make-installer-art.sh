@@ -20,3 +20,20 @@ render() { # <query> <output>
 
 render light "$OUT/background.png"
 render dark "$OUT/background-dark.png"
+
+# The installer app's icon: one 1024px render, sized down into an .icns.
+"$CHROME" --headless --disable-gpu --hide-scrollbars --default-background-color=00000000 \
+  --window-size=1024,1024 --screenshot="$SHOT/icon.png" \
+  "file://$ROOT/installer/art/icon.html" >/dev/null 2>&1
+ICONSET="$SHOT/AppIcon.iconset"; mkdir -p "$ICONSET"
+for size in 16 32 64 128 256 512 1024; do
+  sips -z $size $size "$SHOT/icon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+done
+# Retina variants are the doubled sizes under the @2x name.
+for pair in "16 32" "32 64" "128 256" "256 512" "512 1024"; do
+  set -- $pair
+  cp "$ICONSET/icon_${2}x${2}.png" "$ICONSET/icon_${1}x${1}@2x.png"
+done
+rm -f "$ICONSET/icon_64x64.png" "$ICONSET/icon_1024x1024.png"
+iconutil -c icns "$ICONSET" -o "$ROOT/installer/app/AppIcon.icns"
+echo "wrote installer/app/AppIcon.icns"

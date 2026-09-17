@@ -15,17 +15,19 @@
     font-family: -apple-system, sans-serif;
   }
   body.dark { background: linear-gradient(170deg, #2b2047 0%, #3d2a5e 55%, #4a2f58 100%); --ink: #180f2a; }
-  .glow { position: absolute; border-radius: 50%; filter: blur(46px); opacity: .55; }
-  .glow.a { width: 320px; height: 320px; left: -110px; top: -120px; background: #b49cff; }
-  .glow.b { width: 300px; height: 300px; right: -90px; bottom: -110px; background: #ff9ec9; }
-  body.dark .glow { opacity: .42; }
+  /* Only the left strip (about 184pt) and the header band stay visible: the
+     Installer's content pane covers the rest, so the mascot lives bottom-left. */
+  .glow { position: absolute; border-radius: 50%; filter: blur(52px); opacity: .5; }
+  .glow.a { width: 300px; height: 300px; left: -120px; top: -130px; background: #b49cff; }
+  .glow.b { width: 260px; height: 260px; left: -80px; bottom: -90px; background: #ff9ec9; }
+  body.dark .glow { opacity: .4; }
   body.dark .glow.a { background: #7555c7; }
   body.dark .glow.b { background: #b4508f; }
-  .ring { position: absolute; border: 2px solid rgba(59, 42, 85, .10); border-radius: 50%; }
-  body.dark .ring { border-color: rgba(255, 255, 255, .09); }
-  .r1 { width: 286px; height: 286px; left: 30px; top: 118px; }
-  .r2 { width: 392px; height: 392px; left: -22px; top: 66px; }
-  .mascot { position: absolute; left: 172px; bottom: 26px; transform: translateX(-50%); width: 210px; }
+  .ring { position: absolute; border: 1.5px solid rgba(59, 42, 85, .09); border-radius: 50%; }
+  body.dark .ring { border-color: rgba(255, 255, 255, .08); }
+  .r1 { width: 210px; height: 210px; left: -14px; bottom: -44px; }
+  .r2 { width: 300px; height: 300px; left: -60px; bottom: -92px; }
+  .mascot { position: absolute; left: 92px; bottom: 22px; transform: translateX(-50%); width: 118px; }
   .mascot * { stroke-linecap: round; stroke-linejoin: round; }
   .ball { fill: url(#gMetal); } .grille { fill: url(#pGrille); }
   .gloss { fill: #fff; opacity: .7; }

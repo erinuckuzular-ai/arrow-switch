@@ -19,8 +19,10 @@ curl -fsSL https://raw.githubusercontent.com/erinuckuzular-ai/arrow-switch/main/
 ```
 
 Or download `Arrow-Switch-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest)
-and run **Install Arrow Switch.pkg**. The installer is signed with a Developer ID and notarized
-by Apple, so it opens without a Gatekeeper warning.
+and run **Install Arrow Switch**, the app in the disk image: one button, no admin password, and it
+quits Premiere for you. `Install Arrow Switch.pkg` is still there for a system-wide install (it does
+ask for a password). Everything is signed with a Developer ID and notarized, so nothing is blocked
+by Gatekeeper.
 
 Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 
@@ -84,6 +86,8 @@ extension/            the CEP panel that ships to users
                       (?state=empty|analyzing|result|done|setup|syncing|synced, &theme=dark, &mc=1, &tone=nice)
   fonts/              Lilita One + Nunito (SIL OFL), bundled so it works offline
   jsx/host.jsx        ExtendScript: reads the sequence, clones it, razors, disables clips
+installer/app/        the installer app (SwiftUI, built by scripts/build-installer-app.sh)
+installer/art/        background and icon artwork, rendered by scripts/make-installer-art.sh
 installer/            pkg scripts, installer pages, uninstaller, read me
 test/                 node --test suites
 build.sh              tests -> universal ffmpeg -> signed ZXP -> .pkg -> .dmg

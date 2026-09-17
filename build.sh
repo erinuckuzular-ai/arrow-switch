@@ -148,10 +148,22 @@ if [ -n "${NOTARY_PROFILE:-}" ] && [ -n "${INSTALLER_SIGN_ID:-}" ]; then
   xcrun stapler staple "$PKG"
 fi
 
+# ------------------------------------------------------------------ installer app
+step "Building installer app"
+APP="$("$ROOT/scripts/build-installer-app.sh" "$ZXP" "$BUILD" "$VERSION" | tail -1)"
+
+if [ -n "${NOTARY_PROFILE:-}" ] && [ -n "${APP_SIGN_ID:-}" ]; then
+  step "Notarizing installer app"
+  ditto -c -k --keepParent "$APP" "$BUILD/installer-app.zip"
+  xcrun notarytool submit "$BUILD/installer-app.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$APP"
+fi
+
 # ------------------------------------------------------------------ dmg
 step "Building disk image"
 DMG_SRC="$BUILD/dmg"
 mkdir -p "$DMG_SRC"
+cp -R "$APP" "$DMG_SRC/"
 cp "$PKG" "$DMG_SRC/"
 [ -f "$ZXP" ] && cp "$ZXP" "$DMG_SRC/"
 cp "$ROOT/installer/uninstall.command" "$DMG_SRC/Uninstall $NAME.command"
