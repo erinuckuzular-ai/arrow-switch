@@ -160,19 +160,61 @@ if [ -n "${NOTARY_PROFILE:-}" ] && [ -n "${APP_SIGN_ID:-}" ]; then
 fi
 
 # ------------------------------------------------------------------ dmg
+# The window is laid out to match installer/art/dmg-background.html: the app on
+# the left plate, everything else in a folder on the right plate.
 step "Building disk image"
 DMG_SRC="$BUILD/dmg"
-mkdir -p "$DMG_SRC"
+rm -rf "$DMG_SRC"
+mkdir -p "$DMG_SRC/Everything else/Licenses" "$DMG_SRC/.background"
 cp -R "$APP" "$DMG_SRC/"
-cp "$PKG" "$DMG_SRC/"
-[ -f "$ZXP" ] && cp "$ZXP" "$DMG_SRC/"
-cp "$ROOT/installer/uninstall.command" "$DMG_SRC/Uninstall $NAME.command"
-cp "$ROOT/installer/Read Me.txt" "$DMG_SRC/"
-mkdir -p "$DMG_SRC/Licenses" && cp "$ROOT/licenses/"* "$DMG_SRC/Licenses/"
+cp "$PKG" "$DMG_SRC/Everything else/"
+[ -f "$ZXP" ] && cp "$ZXP" "$DMG_SRC/Everything else/"
+cp "$ROOT/installer/uninstall.command" "$DMG_SRC/Everything else/Uninstall $NAME.command"
+cp "$ROOT/installer/Read Me.txt" "$DMG_SRC/Everything else/"
+cp "$ROOT/licenses/"* "$DMG_SRC/Everything else/Licenses/"
+cp "$ROOT/installer/resources/dmg-background.png" "$DMG_SRC/.background/background.png"
+cp "$ROOT/installer/resources/dmg-background@2x.png" "$DMG_SRC/.background/background@2x.png"
+cp "$ROOT/installer/app/AppIcon.icns" "$DMG_SRC/.VolumeIcon.icns"
 
 DMG="$DIST/Arrow-Switch-$VERSION.dmg"
-rm -f "$DMG"
-hdiutil create -volname "$NAME" -srcfolder "$DMG_SRC" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+RW="$BUILD/rw.dmg"
+rm -f "$DMG" "$RW"
+# Build read/write first so the Finder can record the window's look, then compress.
+hdiutil create -volname "$NAME" -srcfolder "$DMG_SRC" -fs HFS+ -format UDRW -ov "$RW" >/dev/null
+MOUNT="$(hdiutil attach -nobrowse -noautoopen "$RW" | tail -1 | sed 's/.*\(\/Volumes\/.*\)/\1/')"
+SetFile -a C "$MOUNT" 2>/dev/null || true      # show the custom volume icon
+
+osascript - "$MOUNT" <<'APPLESCRIPT' >/dev/null 2>&1 || echo "  (couldn't style the window; shipping the plain one)"
+on run argv
+  set mountPath to item 1 of argv
+  set bgFile to POSIX file (mountPath & "/.background/background.png") as alias
+  set volName to do shell script "basename " & quoted form of mountPath
+  tell application "Finder"
+    tell disk volName
+      open
+      set current view of container window to icon view
+      set toolbar visible of container window to false
+      set statusbar visible of container window to false
+      set the bounds of container window to {200, 140, 860, 608}
+      set opts to the icon view options of container window
+      set arrangement of opts to not arranged
+      set icon size of opts to 128
+      set text size of opts to 12
+      set background picture of opts to bgFile
+      set position of item ("Install " & volName & ".app") of container window to {187, 202}
+      set position of item "Everything else" of container window to {479, 202}
+      update without registering applications
+      delay 1
+      close
+    end tell
+  end tell
+end run
+APPLESCRIPT
+
+sync
+hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet
+hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
+rm -f "$RW"
 
 if [ -n "${APP_SIGN_ID:-}" ]; then
   codesign --sign "$APP_SIGN_ID" --timestamp "$DMG"

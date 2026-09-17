@@ -21,6 +21,14 @@ render() { # <query> <output>
 render light "$OUT/background.png"
 render dark "$OUT/background-dark.png"
 
+# The disk image window's backdrop, at 1x and 2x for retina.
+"$CHROME" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+  --window-size=660,440 --screenshot="$SHOT/dmg.png" \
+  "file://$ROOT/installer/art/dmg-background.html" >/dev/null 2>&1
+cp "$SHOT/dmg.png" "$OUT/dmg-background@2x.png"
+sips -z 440 660 -s format png "$SHOT/dmg.png" --out "$OUT/dmg-background.png" >/dev/null
+echo "wrote installer/resources/dmg-background.png (+@2x)"
+
 # The installer app's icon: one 1024px render, sized down into an .icns.
 "$CHROME" --headless --disable-gpu --hide-scrollbars --default-background-color=00000000 \
   --window-size=1024,1024 --screenshot="$SHOT/icon.png" \

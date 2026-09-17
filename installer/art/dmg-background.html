@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Arrow Switch disk image background</title>
+<!-- Rendered to installer/resources/dmg-background.png by scripts/make-installer-art.sh.
+     Icon positions in build.sh must line up with the plates drawn here. -->
+<style>
+  html, body { margin: 0; }
+  body {
+    width: 660px; height: 440px; overflow: hidden; position: relative;
+    background: linear-gradient(160deg, #cbbaff 0%, #ffc9dd 54%, #ffe3c6 100%);
+    font-family: -apple-system, "Helvetica Neue", sans-serif; color: #3b2a55;
+  }
+  .glow { position: absolute; border-radius: 50%; filter: blur(60px); }
+  .g1 { width: 340px; height: 340px; left: -130px; top: -140px; background: #b49cff; opacity: .6; }
+  .g2 { width: 300px; height: 300px; right: -110px; bottom: -120px; background: #ff9ec9; opacity: .5; }
+
+  h1 { position: absolute; left: 40px; top: 30px; margin: 0; font-size: 27px; font-weight: 800; letter-spacing: -.4px; }
+  .sub { position: absolute; left: 41px; top: 66px; font-size: 13px; font-weight: 600; color: rgba(59,42,85,.6); }
+
+  /* Plates sit behind the icons the Finder draws; see build.sh for the coordinates. */
+  .plate {
+    position: absolute; border-radius: 22px; background: rgba(255,255,255,.42);
+    border: 1.5px solid rgba(59,42,85,.12);
+  }
+  .p-app { left: 62px; top: 124px; width: 250px; height: 226px; background: rgba(255,255,255,.58); }
+  .p-extras { left: 360px; top: 124px; width: 238px; height: 226px; }
+
+  .cap { position: absolute; width: 250px; text-align: center; font-size: 12.5px; font-weight: 600; color: rgba(59,42,85,.62); }
+  .cap-app { left: 62px; top: 318px; }
+  .cap-extras { left: 360px; top: 310px; width: 238px; }
+  .step { position: absolute; font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: rgba(59,42,85,.45); }
+  .s-app { left: 62px; top: 140px; width: 250px; text-align: center; }
+  .s-extras { left: 360px; top: 140px; width: 238px; text-align: center; }
+
+  .mic { position: absolute; right: 14px; bottom: 50px; width: 54px; opacity: .92; }
+  .foot { position: absolute; left: 40px; bottom: 58px; font-size: 11.5px; font-weight: 600; color: rgba(59,42,85,.45); }
+</style>
+<div class="glow g1"></div><div class="glow g2"></div>
+<h1>Arrow Switch</h1>
+<div class="sub">Automatic multicam podcast editing for Premiere Pro</div>
+
+<div class="plate p-app"></div>
+<div class="plate p-extras"></div>
+<div class="step s-app">Double-click this</div>
+<div class="step s-extras">Or the long way round</div>
+<div class="cap cap-app">One button, no password</div>
+<div class="cap cap-extras">.pkg installer, Windows .zxp,<br>uninstaller and licences</div>
+
+<svg class="mic" viewBox="16 -12 88 148" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gMetal" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#d9dcea"/><stop offset="1" stop-color="#8f94ad"/></radialGradient>
+    <radialGradient id="gHandle" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#8b78b8"/><stop offset="1" stop-color="#3b2a55"/></radialGradient>
+    <radialGradient id="gGold" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff0b8"/><stop offset="1" stop-color="#f0a93b"/></radialGradient>
+    <pattern id="pGrille" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="none"/><path d="M0 0 H6 M0 0 V6" stroke="#5b5f78" stroke-width="1.1" opacity=".55"/>
+    </pattern>
+  </defs>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 76 Q24 66 20 48" stroke="#3b2a55" stroke-width="6" fill="none"/>
+    <circle cx="19" cy="45" r="6" fill="#3b2a55"/>
+    <path d="M78 76 Q96 84 98 98" stroke="#3b2a55" stroke-width="6" fill="none"/>
+    <circle cx="98" cy="100" r="5" fill="#3b2a55"/>
+    <path fill="url(#gHandle)" d="M44 72 L50 118 Q60 126 70 118 L76 72 Z"/>
+    <rect x="55" y="90" width="10" height="14" rx="4" fill="#2a1e3e"/>
+    <circle cx="60" cy="94" r="2.4" fill="#ff5f73"/>
+    <rect x="38" y="62" width="44" height="14" rx="7" fill="url(#gGold)"/>
+    <circle cx="60" cy="34" r="32" fill="url(#gMetal)"/>
+    <circle cx="60" cy="34" r="32" fill="url(#pGrille)"/>
+    <ellipse cx="46" cy="16" rx="10" ry="5" fill="#fff" opacity=".7" transform="rotate(-30 46 16)"/>
+    <ellipse cx="48" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+    <ellipse cx="72" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+    <circle cx="50" cy="34" r="4" fill="#3b2a55"/><circle cx="74" cy="34" r="4" fill="#3b2a55"/>
+    <path d="M38 18 L56 23 M82 18 L64 23" stroke="#3b2a55" stroke-width="4" fill="none"/>
+    <path d="M50 50 Q62 56 72 46" stroke="#3b2a55" stroke-width="3.5" fill="none"/>
+  </g>
+</svg>
+<div class="foot">Needs Premiere Pro 2022 or newer · signed and notarised</div>

@@ -66,8 +66,9 @@ Arrow Switch always saves your project first and works on a new sequence
 (`<name> – Arrow Switch`); your original is never changed. ⌘/Ctrl+Enter does the next step.
 Theme (auto/light/dark) and tone (mean/nice) are the two buttons top right.
 
-Windows: install `Arrow Switch.zxp` with a ZXP installer and put `ffmpeg.exe`
-in the extension's `bin` folder.
+Windows: the disk image's **Everything else** folder holds `Arrow Switch.zxp`; install it with a
+ZXP installer and put `ffmpeg.exe` in the extension's `bin` folder. That folder also holds the
+`.pkg`, the uninstaller and the licences.
 
 ## For developers
 
