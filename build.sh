@@ -6,10 +6,14 @@
 #   Uninstall Arrow Switch.command
 #   Read Me.txt
 #
-# Optional environment variables:
+# Apple signing + notarization (stops the macOS "can't verify / malware" warning) is
+# automatic once the Developer ID certificates and the notary profile exist on this Mac
+# (see README > Signing and notarization). Override with:
 #   INSTALLER_SIGN_ID   "Developer ID Installer: Name (TEAMID)" — signs the .pkg
-#   APP_SIGN_ID         "Developer ID Application: Name (TEAMID)" — signs ffmpeg
-#   NOTARY_PROFILE      keychain profile from `xcrun notarytool store-credentials`
+#   APP_SIGN_ID         "Developer ID Application: Name (TEAMID)" — signs ffmpeg and the .dmg
+#   NOTARY_PROFILE      keychain profile from `xcrun notarytool store-credentials` (default: arrow-switch-notary)
+#   UNSIGNED=1          build without Apple signing even if certificates are present
+#   RELEASE=1           refuse to finish unless the DMG is signed, notarized and stapled
 #   ZXP_CERT_PASSWORD   password for the self-signed ZXP certificate (default: generated per machine)
 #   SKIP_ZXP_SIGN=1     build an unsigned extension (installer turns on CEP debug mode instead)
 #
@@ -26,6 +30,37 @@ CACHE="$ROOT/.cache"
 EXT_INSTALL_DIR="Library/Application Support/Adobe/CEP/extensions/$BUNDLE_ID"
 
 step() { printf '\n\033[1;35m▸ %s\033[0m\n' "$1"; }
+
+# ------------------------------------------------------------------ Apple signing identities
+if [ "${UNSIGNED:-0}" != "1" ]; then
+  find_identity() { security find-identity -v "$@" 2>/dev/null | sed -n 's/.*"\(.*\)"$/\1/p' | head -1; }
+  APP_SIGN_ID="${APP_SIGN_ID:-$(find_identity -p codesigning | grep 'Developer ID Application' || true)}"
+  INSTALLER_SIGN_ID="${INSTALLER_SIGN_ID:-$(security find-identity -v 2>/dev/null | sed -n 's/.*"\(Developer ID Installer:.*\)"$/\1/p' | head -1)}"
+  NOTARY_PROFILE="${NOTARY_PROFILE:-arrow-switch-notary}"
+  if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then NOTARY_PROFILE=""; fi
+else
+  APP_SIGN_ID=""; INSTALLER_SIGN_ID=""; NOTARY_PROFILE=""
+fi
+if [ "${RELEASE:-0}" = "1" ] && { [ -z "$APP_SIGN_ID" ] || [ -z "$INSTALLER_SIGN_ID" ] || [ -z "$NOTARY_PROFILE" ]; }; then
+  echo "RELEASE=1 needs Developer ID Application + Installer certificates and the '${NOTARY_PROFILE:-arrow-switch-notary}' notary profile." >&2
+  echo "  Application: ${APP_SIGN_ID:-missing}" >&2
+  echo "  Installer:   ${INSTALLER_SIGN_ID:-missing}" >&2
+  echo "  Notary:      ${NOTARY_PROFILE:-missing}" >&2
+  exit 1
+fi
+
+# Submits a file to Apple, fails the build (with Apple's log) unless it's accepted, then staples.
+notarize() {
+  local file="$1" out id
+  out="$(xcrun notarytool submit "$file" --keychain-profile "$NOTARY_PROFILE" --wait --output-format json)"
+  id="$(printf '%s' "$out" | sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p')"
+  if ! printf '%s' "$out" | grep -q '"status" *: *"Accepted"'; then
+    echo "Apple rejected $(basename "$file"):" >&2
+    [ -n "$id" ] && xcrun notarytool log "$id" --keychain-profile "$NOTARY_PROFILE" >&2
+    exit 1
+  fi
+  xcrun stapler staple "$file"
+}
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD" "$DIST" "$CACHE"
@@ -69,6 +104,7 @@ cp "$ROOT/licenses/"* "$STAGE/licenses/"
 cp "$CACHE/ffmpeg" "$STAGE/bin/ffmpeg"
 if [ -n "${APP_SIGN_ID:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$APP_SIGN_ID" "$STAGE/bin/ffmpeg"
+  codesign --verify --strict "$STAGE/bin/ffmpeg"
 elif ! codesign -v "$STAGE/bin/ffmpeg" 2>/dev/null; then
   codesign --force --sign - "$STAGE/bin/ffmpeg"   # ad-hoc; Apple Silicon refuses unsigned binaries
 fi
@@ -139,10 +175,9 @@ productbuild \
   ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} \
   "$PKG"
 
-if [ -n "${NOTARY_PROFILE:-}" ] && [ -n "${INSTALLER_SIGN_ID:-}" ]; then
-  step "Notarizing installer"
-  xcrun notarytool submit "$PKG" --keychain-profile "$NOTARY_PROFILE" --wait
-  xcrun stapler staple "$PKG"
+if [ -n "$NOTARY_PROFILE" ] && [ -n "$INSTALLER_SIGN_ID" ]; then
+  step "Notarizing installer with Apple (usually a few minutes)"
+  notarize "$PKG"
 fi
 
 # ------------------------------------------------------------------ dmg
@@ -159,12 +194,21 @@ DMG="$DIST/Arrow-Switch-$VERSION.dmg"
 rm -f "$DMG"
 hdiutil create -volname "$NAME" -srcfolder "$DMG_SRC" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
 
-if [ -n "${APP_SIGN_ID:-}" ]; then
+if [ -n "$APP_SIGN_ID" ]; then
   codesign --sign "$APP_SIGN_ID" --timestamp "$DMG"
-  if [ -n "${NOTARY_PROFILE:-}" ]; then
-    xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
-    xcrun stapler staple "$DMG"
+  if [ -n "$NOTARY_PROFILE" ]; then
+    step "Notarizing disk image with Apple"
+    notarize "$DMG"
   fi
+fi
+
+# ------------------------------------------------------------------ check what Gatekeeper will say
+step "Gatekeeper check"
+if spctl -a -t install -vv "$PKG" 2>&1 | grep -q "source=Notarized Developer ID" && xcrun stapler validate "$DMG" >/dev/null 2>&1; then
+  echo "Notarized: macOS will open this without a malware warning."
+else
+  echo "NOT notarized: macOS will warn that it can't verify this installer."
+  [ "${RELEASE:-0}" = "1" ] && exit 1
 fi
 
 step "Done"
