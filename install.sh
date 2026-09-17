@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/erinuckuzular-ai/arrow-switch/main/install.sh | bash
 #
 # Downloading with curl (instead of a browser) means macOS doesn't quarantine the files,
-# so there is no "can't verify / malware" warning for this unnotarized build.
+# so the extension loads straight away.
 #
 set -euo pipefail
 

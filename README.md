@@ -12,15 +12,15 @@ talking microphone, and it will be rude to you (there's a nice mode).
 ## For users
 
 **Install (Mac, recommended):** paste this into Terminal. It installs the latest release for
-your user, needs no admin password, and avoids the macOS malware warning:
+your user and needs no admin password:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/erinuckuzular-ai/arrow-switch/main/install.sh | bash
 ```
 
 Or download `Arrow-Switch-<version>.dmg` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest)
-and run **Install Arrow Switch.pkg**. Because the installer isn't notarized by Apple yet, macOS
-will say it can't verify it: open **System Settings → Privacy & Security** and click **Open Anyway**.
+and run **Install Arrow Switch.pkg**. The installer is signed with a Developer ID and notarized
+by Apple, so it opens without a Gatekeeper warning.
 
 Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 
@@ -110,18 +110,30 @@ Output: `dist/Arrow-Switch-<version>.dmg`. The first run downloads a static
 universal ffmpeg and Adobe's ZXPSignCmd into `.cache/`, and creates a
 self-signed ZXP certificate in `certs/` (keep it; reuse it for updates).
 
-### Distributing without Gatekeeper warnings
+### Signing and notarizing the release
 
-Unsigned installers make macOS say the developer can't be verified (users can
-right-click → Open). To remove that you need an Apple Developer account:
+Releases are signed with a Developer ID and notarized, so macOS opens them without a
+warning. Without these variables `build.sh` still produces a working but unsigned build
+that users must right-click → Open. Store the notary credentials once (an App Store
+Connect API key avoids app-specific passwords):
 
 ```bash
-xcrun notarytool store-credentials arrow-switch-notary --apple-id you@example.com --team-id TEAMID
+xcrun notarytool store-credentials arrow-switch-notary \
+  --key ~/Downloads/AuthKey_KEYID.p8 --key-id KEYID --issuer ISSUER-UUID
+```
+
+Then build:
+
+```bash
 INSTALLER_SIGN_ID="Developer ID Installer: Your Name (TEAMID)" \
 APP_SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
 NOTARY_PROFILE=arrow-switch-notary \
 ./build.sh
 ```
+
+Apple's notary service takes a few minutes per file; `build.sh` waits and staples the
+tickets, so the DMG and .pkg validate offline. Check a build with
+`spctl -a -vvv -t install dist/Arrow-Switch-<version>.dmg` (expect `source=Notarized Developer ID`).
 
 ### Test inside Premiere without clicking
 

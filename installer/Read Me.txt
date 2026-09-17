@@ -3,10 +3,6 @@ ARROW SWITCH — automatic multicam podcast editing for Premiere Pro
 INSTALL (Mac)
   1. Quit Premiere Pro.
   2. Double-click "Install Arrow Switch.pkg" and follow the steps.
-     If macOS says it "cannot verify" the installer is free of malware: click Done,
-     open System Settings > Privacy & Security, scroll down and click "Open Anyway"
-     next to Install Arrow Switch.pkg. (This appears because the installer isn't
-     signed with a paid Apple Developer ID yet, not because anything is wrong.)
   3. Open Premiere Pro > Window > Extensions > Arrow Switch.
 
 INSTALL (Windows)
