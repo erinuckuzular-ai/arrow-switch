@@ -400,7 +400,7 @@
     return Math.floor((start + end) / 2);
   }
 
-  function rebuildTrack(track, segs, camIndex, ticks, stats) {
+  function rebuildTrack(track, segs, camIndex, ticks, stats, mode) {
     // Pass 1: resolve every item's timeline range (start/end -1 come from transitions).
     var items = [];
     for (var i = 0; i < track.children.length; i++) {
@@ -421,7 +421,7 @@
     }
 
     var copiesFor = [];
-    for (var r = 0; r < resolved.length; r++) copiesFor.push(cutItem(resolved[r], segs, camIndex, ticks));
+    for (var r = 0; r < resolved.length; r++) copiesFor.push(cutItem(resolved[r], segs, camIndex, ticks, mode));
 
     // Pass 2: rebuild the child list, repeating each item's indentation before every copy.
     var out = [], pending = [], ri = 0;
@@ -448,10 +448,13 @@
     return copiesFor;
   }
 
-  function cutItem(item, segs, camIndex, ticks) {
+  // 'cut': keep only the pieces where this camera is on screen.
+  // 'disable': keep the whole clip, split at every on/off change, off pieces <enabled>FALSE.
+  function cutItem(item, segs, camIndex, ticks, mode) {
     var el = item.el, start = item.start, end = item.end;
-    if ((childText(el, 'enabled') || '').toUpperCase() === 'FALSE') return [];
-    if (start === null || end === null || start < 0 || !(end > start)) return [];
+    var wasDisabled = (childText(el, 'enabled') || '').toUpperCase() === 'FALSE';
+    if (wasDisabled) return mode === 'disable' ? [el] : [];
+    if (start === null || end === null || start < 0 || !(end > start)) return mode === 'disable' ? [el] : [];
 
     var hasInOut = item.inF !== null && item.outF !== null;
     var span = end - start;
@@ -460,10 +463,28 @@
     var hasTicks = ticksInText !== null && /^-?\d+$/.test(ticksInText) && child(el, 'pproTicksOut') !== null;
 
     var pieces = [];
-    for (var s = firstSegmentAfter(segs, start); s < segs.length && segs[s].startFrame < end; s++) {
-      var seg = segs[s];
-      if (seg.cam !== camIndex) continue;
-      pieces.push([Math.max(start, seg.startFrame), Math.min(end, seg.endFrame)]);
+    if (mode === 'disable') {
+      // Runs of on/off across the clip; anything no segment covers counts as off.
+      var cursor = start;
+      var addRun = function (a, b, on) {
+        if (!(b > a)) return;
+        var last = pieces[pieces.length - 1];
+        if (last && last[2] === on && last[1] === a) last[1] = b;
+        else pieces.push([a, b, on]);
+      };
+      for (var d = firstSegmentAfter(segs, start); d < segs.length && segs[d].startFrame < end; d++) {
+        var sg = segs[d];
+        addRun(cursor, Math.max(start, sg.startFrame), false);
+        addRun(Math.max(start, sg.startFrame), Math.min(end, sg.endFrame), sg.cam === camIndex);
+        cursor = Math.min(end, sg.endFrame);
+      }
+      addRun(cursor, end, false);
+    } else {
+      for (var s = firstSegmentAfter(segs, start); s < segs.length && segs[s].startFrame < end; s++) {
+        var seg = segs[s];
+        if (seg.cam !== camIndex) continue;
+        pieces.push([Math.max(start, seg.startFrame), Math.min(end, seg.endFrame), true]);
+      }
     }
     var id = getAttr(el, 'id');
     var copies = [];
@@ -473,6 +494,9 @@
       if (id !== null && pieces.length > 1) setAttr(copy, 'id', id + '-as' + (p + 1));
       setChildText(copy, 'start', a);
       setChildText(copy, 'end', b);
+      if (mode === 'disable' && !setChildText(copy, 'enabled', pieces[p][2] ? 'TRUE' : 'FALSE')) {
+        copy.children.unshift({ type: 'element', name: 'enabled', attrs: [], children: [{ type: 'text', value: pieces[p][2] ? 'TRUE' : 'FALSE' }], selfClosing: false });
+      }
       if (hasInOut) {
         // Offsets are taken from the original clip start so neighbouring pieces tile exactly.
         setChildText(copy, 'in', item.inF + Math.round((a - start) * srcSpan / span));
@@ -539,7 +563,7 @@
   function rebuild(xmlString, opts) {
     opts = opts || {};
     var mode = opts.mode || 'cut';
-    if (mode !== 'cut') throw new Error('Unsupported rebuild mode: ' + mode);
+    if (mode !== 'cut' && mode !== 'disable') throw new Error('Unsupported rebuild mode: ' + mode);
     var camTracks = opts.camTracks || [];
     var segs = normalizeSegments(opts.segments);
 
@@ -580,7 +604,7 @@
       if (done[idx] || !tracks[idx]) continue;
       done[idx] = true;
       var before = stats.clipsOut;
-      rebuildTrack(tracks[idx], segs, idx, ticks, stats);
+      rebuildTrack(tracks[idx], segs, idx, ticks, stats, mode);
       if (stats.clipsOut > before) stats.cameras++;
     }
 

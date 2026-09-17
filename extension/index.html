@@ -147,6 +147,7 @@
         <input id="episodeName" type="text" spellcheck="false" placeholder="EP 143 – someone famous-ish"></label>
       <label class="switch-row"><input type="checkbox" id="optColour" checked><span class="sw"></span> Colour-code everyone’s clips</label>
       <label class="switch-row"><input type="checkbox" id="optMute" checked><span class="sw"></span> Mute the other cameras’ audio (keep one master)</label>
+      <label class="switch-row"><input type="checkbox" id="optMulticam" checked><span class="sw"></span> Also make a multicam edit</label>
     </section>
 
     <section class="sticker">
@@ -217,10 +218,10 @@
       <section class="sticker">
         <h2><span class="num">3</span> How do you want it?</h2>
         <div id="outputs" class="outputs" role="radiogroup" aria-label="Output style">
-          <button role="radio" data-output="hide"><i>👻</i><b>Hide</b><small>enable/disable angles</small></button>
-          <button role="radio" data-output="delete"><i>🔪</i><b>Razor</b><small>cut + delete unused</small></button>
-          <button role="radio" data-output="fast"><i>⚡</i><b>Fast cuts</b><small>real cuts, way faster</small></button>
-          <button role="radio" data-output="multicam"><i>🎛</i><b>Multicam</b><small>cut + angle markers</small></button>
+          <button role="radio" data-output="fast"><i>⚡</i><b>Fast cuts</b><small>real cuts, seconds</small></button>
+          <button role="radio" data-output="fasthide"><i>👻</i><b>Fast hide</b><small>enable/disable, seconds</small></button>
+          <button role="radio" data-output="multicam"><i>🎛</i><b>Multicam</b><small>real angle switches</small></button>
+          <button role="radio" data-output="hide"><i>🐢</i><b>Classic</b><small>razor + disable, slow</small></button>
         </div>
         <p id="outputDesc" class="desc"></p>
       </section>
@@ -255,6 +256,7 @@
   <script src="js/audio.js"></script>
   <script src="js/sync.js"></script>
   <script src="js/xmlcut.js"></script>
+  <script src="js/prproj.js"></script>
   <script src="js/presets.js"></script>
   <script src="js/copy.js"></script>
   <script src="js/main.js"></script>

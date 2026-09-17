@@ -473,6 +473,52 @@
     return runs;
   }
 
+  /*
+   * Never cut to a camera that has no footage (cameras that start late or stop early).
+   * cover: { cam: [[startSec, endSec], ...] }; cams missing from cover are assumed covered.
+   * Each gap is filled from fallbackOrder (usually the wide first), piece by piece, using
+   * whatever part of the gap each camera does cover. Only time no camera covers keeps
+   * the original shot.
+   */
+  function avoidEmpty(segments, cover, fallbackOrder) {
+    if (!cover) return segments;
+    function covered(cam, a, b) {
+      if (!cover.hasOwnProperty(cam)) return [[a, b]];
+      var out = [];
+      cover[cam].forEach(function (r) {
+        var x = Math.max(a, r[0]), y = Math.min(b, r[1]);
+        if (y > x) out.push([x, y]);
+      });
+      return out;
+    }
+    // Pieces of [a, b] not covered by any of the given ranges.
+    function holes(ranges, a, b) {
+      var out = [], cursor = a;
+      ranges.slice().sort(function (x, y) { return x[0] - y[0]; }).forEach(function (r) {
+        if (r[0] > cursor + 1e-6) out.push([cursor, r[0]]);
+        cursor = Math.max(cursor, r[1]);
+      });
+      if (b > cursor + 1e-6) out.push([cursor, b]);
+      return out;
+    }
+    var pieces = [];
+    function fill(cam, a, b, order) {
+      if (!(b > a + 1e-6)) return;
+      if (!order.length) { pieces.push({ cam: cam, start: a, end: b }); return; }
+      var alt = order[0], got = covered(alt, a, b);
+      got.forEach(function (r) { pieces.push({ cam: alt, start: r[0], end: r[1] }); });
+      holes(got, a, b).forEach(function (h) { fill(cam, h[0], h[1], order.slice(1)); });
+    }
+    segments.forEach(function (seg) {
+      var own = covered(seg.cam, seg.start, seg.end);
+      own.forEach(function (r) { pieces.push({ cam: seg.cam, start: r[0], end: r[1] }); });
+      var order = (fallbackOrder || []).filter(function (c) { return c !== seg.cam; });
+      holes(own, seg.start, seg.end).forEach(function (h) { fill(seg.cam, h[0], h[1], order); });
+    });
+    pieces.sort(function (x, y) { return x.start - y.start; });
+    return mergeEqual(pieces);
+  }
+
   // Round segment boundaries to whole frames and drop anything that collapses.
   function snapToFrames(segments, fps) {
     var out = [];
@@ -502,6 +548,7 @@
     detectSpeech: detectSpeech,
     buildEdit: buildEdit,
     snapToFrames: snapToFrames,
+    avoidEmpty: avoidEmpty,
     summarize: summarize,
     _smoothDb: smoothDb,
     _absorbShort: absorbShort,

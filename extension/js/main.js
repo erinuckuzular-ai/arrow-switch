@@ -13,6 +13,7 @@
   var Xml = window.ArrowSwitchXml;
   var Presets = window.ArrowSwitchPresets;
   var Copy = window.ArrowSwitchCopy;
+  var Prproj = window.ArrowSwitchPrproj;
   var IN_PREMIERE = !!window.__adobe_cep__;
   var nodeRequire = (window.cep_node && window.cep_node.require) || null;
   var WINDOW_SEC = Engine.DEFAULTS.windowSec;
@@ -73,10 +74,10 @@
   };
 
   var OUTPUT_DESC = {
-    hide: 'Copies the sequence, razors each angle and switches off whatever isn’t on screen. Easy to tweak by hand.',
-    delete: 'Same as Hide, but deletes the unused angles. Cleaner timeline, slower on long episodes.',
-    fast: 'Rebuilds the whole edit via XML in one go: real cuts, nothing hidden, seconds instead of minutes.',
-    multicam: 'Razors your multicam clip at every switch and drops a marker naming the angle. Premiere won’t let scripts flip angles, so you click them.'
+    fast: 'Rebuilds the whole edit in one go: real cuts, unused angles gone. Seconds, not minutes.',
+    fasthide: 'Rebuilds it in one go with every angle kept, split at each switch and switched off when it’s not on screen.',
+    multicam: 'Cuts your multicam clip at every switch and sets the real angle on each piece. Premiere closes and reopens the project for a moment to do it. Pieces stay multicam, so you can re-switch any of them.',
+    hide: 'The old way: razors and disables angles inside Premiere. Same result as Fast hide, just much slower.'
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -87,7 +88,7 @@
     speakers: [],        // [{ name, audio, video, critter }]
     wideCam: -1,
     preset: 'chatty',
-    settings: Object.assign({ overlapToWide: true, output: 'hide' }, Presets.BUILTIN[1].settings),
+    settings: Object.assign({ overlapToWide: true, output: 'fast' }, Presets.BUILTIN[1].settings),
     levels: {},          // audio track index -> Float32Array
     speech: null,        // last detectSpeech() result, for the lanes and warnings
     segments: null,
@@ -178,7 +179,13 @@
       var saved = JSON.parse(storageGet(STORE_KEY) || storageGet('arrow-autocut-settings') || 'null');
       if (saved) {
         Object.assign(state.settings, saved.settings);
-        if (saved.settings && saved.settings.deleteUnused && !saved.settings.output) state.settings.output = 'delete';
+        // Settings from before 1.4 used "hide"/"delete" for the slow razor modes: move them to
+        // the fast equivalents once. Later, "hide" means Classic and is left alone.
+        if (!saved.v) {
+          if (saved.settings && saved.settings.deleteUnused && !saved.settings.output) state.settings.output = 'fast';
+          if (state.settings.output === 'delete') state.settings.output = 'fast';
+          if (state.settings.output === 'hide') state.settings.output = 'fasthide';
+        }
         state.preset = saved.preset || saved.vibe || null;
       }
       Object.assign(ui, JSON.parse(storageGet(UI_KEY) || '{}'));
@@ -188,7 +195,7 @@
     if (qTone) ui.tone = qTone;
   }
 
-  function saveSettings() { storageSet(STORE_KEY, JSON.stringify({ settings: state.settings, preset: state.preset })); }
+  function saveSettings() { storageSet(STORE_KEY, JSON.stringify({ v: 2, settings: state.settings, preset: state.preset })); }
   function saveUi() { storageSet(UI_KEY, JSON.stringify(ui)); }
 
   // ---------------------------------------------------------------- theme + tone + tabs
@@ -254,10 +261,11 @@
           autoMatch(seq);
         }
         if (seq.multicam) {
-          if (state.settings.output === 'hide' || state.settings.output === 'delete') state.settings.output = 'multicam';
+          // Multicam sequence: real angle switches are almost certainly what you want.
+          state.settings.output = 'multicam';
           if (!state.busy) say(t('multicam', { source: escapeHtml(seq.multicam.sourceName) }));
         } else {
-          if (state.settings.output === 'multicam') state.settings.output = 'hide';
+          if (state.settings.output === 'multicam') state.settings.output = 'fast';
           if (!state.busy && ui.tab === 'cut') say(t('matched'));
         }
         renderOutputs();
@@ -282,21 +290,58 @@
     return track.name && !/^Audio \d+$/i.test(track.name) ? track.name : 'Speaker ' + (i + 1);
   }
 
-  // Common layouts: V1 = wide + one camera per mic above it, or one camera per mic with no wide.
-  // Muted audio tracks are usually spare camera audio, so they're not mics.
+  // Guess who's who from the tracks. Audio that comes from a camera file (the master or
+  // scratch audio) isn't a person's mic. Cameras and mics are paired by name (track name
+  // or file name), a track or file called wide/WS/master is the wide, and only what's left
+  // falls back to track order.
+  function wordsOf(text) {
+    return String(text || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').replace(/[_-]+/g, ' ')
+      .replace(CAMERA_WORDS, ' ').split(/[^a-z0-9\u00c0-\u024f]+/).filter(function (w) { return w.length > 1; });
+  }
+  function trackWords(tr) {
+    var custom = tr.name && !/^(audio|video) \d+$/i.test(tr.name) ? tr.name : '';
+    return wordsOf(custom + ' ' + (tr.media || []).join(' '));
+  }
+  function isWideTrack(tr) {
+    return WIDE_WORDS.test(tr.name || '') || (tr.media || []).some(function (m) { return WIDE_WORDS.test(m.replace(/[_.-]+/g, ' ')); });
+  }
+
   function autoMatch(seq) {
-    var mics = seq.audioTracks.filter(function (tr) { return tr.clipCount > 0 && !tr.muted; });
     var cams = seq.videoTracks.filter(function (tr) { return tr.clipCount > 0; });
-    if (!mics.length) mics = seq.audioTracks.filter(function (tr) { return tr.clipCount > 0; });
+    var camMedia = {};
+    cams.forEach(function (tr) { (tr.media || []).forEach(function (m) { camMedia[m] = true; }); });
+    var fromCamera = function (tr) { return (tr.media || []).length > 0 && tr.media.every(function (m) { return camMedia[m]; }); };
+
+    var mics = seq.audioTracks.filter(function (tr) { return tr.clipCount > 0 && !tr.muted && !fromCamera(tr); });
+    if (!mics.length) mics = seq.audioTracks.filter(function (tr) { return tr.clipCount > 0 && !fromCamera(tr); });
+    if (!mics.length) mics = seq.audioTracks.filter(function (tr) { return tr.clipCount > 0 && !tr.muted; });
     if (!mics.length) mics = seq.audioTracks.slice(0, 2);
     if (!cams.length) cams = seq.videoTracks.slice(0, 1);
 
-    var hasWide = cams.length > mics.length;
-    state.wideCam = hasWide ? cams[0].index : -1;
-    var personal = hasWide ? cams.slice(1) : cams;
+    var taken = {}, camFor = {};
+    mics.forEach(function (m) {
+      var words = trackWords(m), best = null, bestScore = 0;
+      cams.forEach(function (c) {
+        if (taken[c.index] || isWideTrack(c)) return;
+        var cw = trackWords(c), score = 0;
+        words.forEach(function (w) { if (cw.indexOf(w) >= 0) score++; });
+        if (score > bestScore) { best = c; bestScore = score; }
+      });
+      if (best) { camFor[m.index] = best.index; taken[best.index] = true; }
+    });
+
+    var wide = cams.filter(isWideTrack)[0];
+    if (!wide && cams.length > mics.length && cams.length > 1) wide = cams.filter(function (c) { return !taken[c.index]; })[0];
+    state.wideCam = wide ? wide.index : -1;
+
+    var free = cams.filter(function (c) { return !taken[c.index] && c.index !== state.wideCam; });
     state.speakers = mics.map(function (m, i) {
-      var cam = personal[Math.min(i, personal.length - 1)];
-      return { name: speakerName(m, i), audio: m.index, video: cam ? cam.index : 0, critter: i };
+      var video = camFor.hasOwnProperty(m.index) ? camFor[m.index] : null;
+      if (video === null) {
+        var next = free.shift();
+        video = next ? next.index : (cams[Math.min(i, cams.length - 1)] || { index: 0 }).index;
+      }
+      return { name: speakerName(m, i), audio: m.index, video: video, critter: i };
     });
     $('autoTag').hidden = false;
   }
@@ -395,7 +440,8 @@
         if (!p) return;
         state.preset = p.id;
         Object.assign(state.settings, p.settings);
-        if (state.seq && state.seq.multicam && (state.settings.output === 'hide' || state.settings.output === 'delete')) state.settings.output = 'multicam';
+        if (state.seq && state.seq.multicam && state.settings.output === 'hide') state.settings.output = 'multicam';
+        if (!(state.seq && state.seq.multicam) && state.settings.output === 'multicam') state.settings.output = 'fast';
         renderSettings();
         renderOutputs();
         saveSettings();
@@ -444,12 +490,13 @@
     var mc = !!(state.seq && state.seq.multicam);
     document.querySelectorAll('#outputs button').forEach(function (b) {
       var o = b.getAttribute('data-output');
-      b.disabled = (o === 'multicam' && !mc) || (mc && (o === 'hide' || o === 'delete'));
+      b.disabled = (o === 'multicam' && !mc) || (mc && o === 'hide');
       b.setAttribute('aria-checked', String(state.settings.output === o));
-      b.title = b.disabled ? (o === 'multicam' ? 'Needs a sequence cut from a multicam clip' : 'Not for multicam sequences: use Multicam or Fast cuts') : '';
+      b.title = b.disabled ? (o === 'multicam' ? 'Needs a multicam or nested sequence clip (Set up can make one)' : 'Not for multicam sequences: use Multicam or a Fast mode') : '';
     });
     $('outputDesc').textContent = OUTPUT_DESC[state.settings.output] || '';
-    $('apply').textContent = state.settings.output === 'fast' ? '⚡ CUT IT!' : state.settings.output === 'multicam' ? 'MARK IT!' : 'CUT IT!';
+    var o2 = state.settings.output;
+    $('apply').textContent = o2 === 'fast' || o2 === 'fasthide' ? '⚡ CUT IT!' : o2 === 'multicam' ? '🎛 SWITCH IT!' : 'CUT IT!';
   }
 
   function camColor(cam) {
@@ -616,6 +663,7 @@
         dup[s.audio] = i;
       });
     }
+    if (state.patchedGaps) items.push(t('noFootage'));
     state.notes.forEach(function (n) {
       var tracks = n.tracks.map(function (tr) { return 'A' + (tr + 1); }).join(' + ');
       if (n.type === 'splitChannels') items.push(t('splitChannels', { file: escapeHtml(n.file), tracks: tracks }));
@@ -675,15 +723,45 @@
     else { state.segments = null; renderProgram(); }
   }
 
-  function recompute() {
-    if (!state.seq || !haveLevelsForAll()) return;
+  // Where each camera has footage, on this sequence's timeline (multicam angles are shifted
+  // from the source sequence through the multicam clip).
+  function coverage() {
+    var seq = state.seq, mc = seq.multicam, cover = {};
+    seq.videoTracks.forEach(function (tr) {
+      if (!tr.cover) return;
+      if (!mc) { cover[tr.index] = tr.cover; return; }
+      var ranges = [];
+      mc.pieces.forEach(function (pc) {
+        var shift = pc.start - pc.inPoint;
+        tr.cover.forEach(function (r) {
+          var a = Math.max(r[0] + shift, pc.start), b = Math.min(r[1] + shift, pc.end);
+          if (b > a) ranges.push([a, b]);
+        });
+      });
+      cover[tr.index] = ranges.sort(function (x, y) { return x[0] - y[0]; });
+    });
+    return cover;
+  }
+
+  function decide() {
     var opts = Object.assign({ windowSec: WINDOW_SEC }, state.settings);
     var levels = state.speakers.map(function (sp) { return state.levels[sp.audio]; });
-    var speech = state.speech = Engine.detectSpeech(levels, opts);
-    state.segments = Engine.buildEdit(speech.active, Object.assign({}, opts, {
+    state.speech = Engine.detectSpeech(levels, opts);
+    var segs = Engine.buildEdit(state.speech.active, Object.assign({}, opts, {
       speakerCams: state.speakers.map(function (sp) { return sp.video; }),
       wideCam: state.wideCam >= 0 ? state.wideCam : null
     }));
+    var order = [];
+    if (state.wideCam >= 0) order.push(state.wideCam);
+    state.speakers.forEach(function (sp) { if (order.indexOf(sp.video) < 0) order.push(sp.video); });
+    var safe = Engine.avoidEmpty(segs, coverage(), order);
+    state.patchedGaps = safe.length !== segs.length || safe.some(function (x, i) { return !segs[i] || x.cam !== segs[i].cam; });
+    state.segments = safe;
+  }
+
+  function recompute() {
+    if (!state.seq || !haveLevelsForAll()) return;
+    decide();
     renderProgram();
   }
 
@@ -728,12 +806,7 @@
         $('meters').hidden = true;
         state.busy = false;
         if (!haveLevelsForAll()) return;
-        var opts = Object.assign({ windowSec: WINDOW_SEC }, state.settings);
-        state.speech = Engine.detectSpeech(state.speakers.map(function (sp) { return state.levels[sp.audio]; }), opts);
-        state.segments = Engine.buildEdit(state.speech.active, Object.assign({}, opts, {
-          speakerCams: state.speakers.map(function (sp) { return sp.video; }),
-          wideCam: state.wideCam >= 0 ? state.wideCam : null
-        }));
+        decide();
         renderProgram(true);
       })
       .catch(function (err) {
@@ -774,19 +847,14 @@
     setTimeout(function () {
       var run;
       if (output === 'multicam') {
-        var angles = {};
-        involvedTracks(frames).forEach(function (cam) {
-          var who = speakerIndexForCam(cam);
-          angles[cam] = { label: 'Angle ' + (cam + 1) + ' · ' + camLabel(cam), color: who >= 0 ? channel(who).marker : WIDE.marker };
+        run = multicamCut(frames, newName, secs);
+      } else if (output === 'fast' || output === 'fasthide') {
+        run = fastCut(frames, newName, output === 'fasthide' ? 'disable' : 'cut').then(function (res) {
+          return t(output === 'fasthide' ? 'fastHideDone' : 'fastDone', { name: escapeHtml(res.name), secs: secs() });
         });
-        run = callHost('AC_applyMulticam', JSON.stringify({
-          sourceId: seq.id, newName: newName, trackIndex: seq.multicam.trackIndex, segments: frames, angles: angles
-        })).then(function (res) { return t('multicamDone', { markers: res.markers, name: escapeHtml(res.name) }); });
-      } else if (output === 'fast') {
-        run = fastCut(frames, newName).then(function (res) { return t('fastDone', { name: escapeHtml(res.name), secs: secs() }); });
       } else {
         run = callHost('AC_applyEdit', JSON.stringify({
-          sourceId: seq.id, newName: newName, mode: output === 'delete' ? 'delete' : 'disable', tracks: involvedTracks(frames), segments: frames
+          sourceId: seq.id, newName: newName, mode: 'disable', tracks: involvedTracks(frames), segments: frames
         })).then(function (res) {
           if (res.originalUntouched === false) throw new Error(t('changedOriginal', { name: res.name }));
           return t('done', { secs: secs(), name: escapeHtml(res.name) });
@@ -798,8 +866,49 @@
     }, 60);
   }
 
-  // Export -> rebuild with real cuts in JS -> import. One import instead of thousands of razors.
-  function fastCut(frames, newName) {
+  /*
+   * Real multicam angles: razor + tag in Premiere, then close the project, write the angle of
+   * every tagged piece into the project file (a backup copy is kept), and reopen it.
+   */
+  function multicamCut(frames, newName, secs) {
+    var seq = state.seq;
+    return callHost('AC_applyMulticam', JSON.stringify({
+      sourceId: seq.id, newName: newName, trackIndex: seq.multicam.trackIndex, segments: frames
+    })).then(function (res) {
+      if (!res.count) throw new Error('I cut “' + res.name + '” but found no multicam pieces to switch.');
+      if (!res.projectPath) throw new Error('Save the project once first, then try Multicam again.');
+      say(t('multicamClosing'), 'cut');
+      var names = {};
+      Object.keys(res.pieces).forEach(function (tag) { names[tag] = res.pieces[tag].name; });
+      return callHost('AC_closeProject').then(function (closed) {
+        var outcome = { set: res.count, missing: [] };
+        if (IN_PREMIERE) outcome = patchProjectAngles(closed.path, res.pieces);
+        return callHost('AC_reopenProject', JSON.stringify({ path: closed.path, sequenceId: res.sequenceId, names: names }))
+          .then(function () {
+            if (outcome.missing.length) return t('multicamPartial', { count: outcome.set, name: escapeHtml(res.name), missing: outcome.missing.length });
+            return t('multicamDone', { count: outcome.set, name: escapeHtml(res.name), secs: secs() });
+          });
+      });
+    });
+  }
+
+  function patchProjectAngles(projectPath, pieces) {
+    var fs = nodeRequire('fs'), path = nodeRequire('path'), zlib = nodeRequire('zlib');
+    var backupDir = path.join(Audio.defaultCacheDir(), 'project-backups');
+    fs.mkdirSync(backupDir, { recursive: true });
+    var raw = fs.readFileSync(projectPath);
+    fs.writeFileSync(path.join(backupDir, path.basename(projectPath, '.prproj') + '-' + Date.now() + '.prproj'), raw);
+    var gz = raw[0] === 0x1f && raw[1] === 0x8b;
+    var xml = (gz ? zlib.gunzipSync(raw) : raw).toString('utf8');
+    var r = Prproj.setAngles(xml, pieces);
+    var out = Buffer.from(r.xml, 'utf8');
+    fs.writeFileSync(projectPath, gz ? zlib.gzipSync(out) : out);
+    return r;
+  }
+
+  // Export -> rebuild in JS (real cuts, or every angle kept with the unused parts disabled)
+  // -> import. One import instead of thousands of razors.
+  function fastCut(frames, newName, mode) {
     var seq = state.seq, mc = seq.multicam;
     var sequenceId = mc ? mc.sourceId : seq.id;
     var shift = 0;
@@ -817,7 +926,7 @@
     var src = path.join(dir, 'source-' + stamp + '.xml');
     var out = path.join(dir, newName.replace(/[\\/:*?"<>|]/g, '-') + '.xml');
     return callHost('AC_exportXml', JSON.stringify({ sequenceId: sequenceId, path: src })).then(function () {
-      var rebuilt = Xml.rebuild(fs.readFileSync(src, 'utf8'), { segments: segments, camTracks: involvedTracks(frames), newName: newName });
+      var rebuilt = Xml.rebuild(fs.readFileSync(src, 'utf8'), { segments: segments, camTracks: involvedTracks(frames), newName: newName, mode: mode });
       fs.writeFileSync(out, rebuilt.xml);
       return callHost('AC_importXml', JSON.stringify({ path: out, name: newName }));
     });
@@ -870,18 +979,55 @@
     return prettyName(f).replace(/\b(cam(era)?|wide|[a-d])\b.*$/i, '').trim() || 'New episode';
   }
 
-  // More cameras than people: the first camera is the wide. Each person gets the next camera.
+  var WIDE_WORDS = /(^|[^a-z])(wide|ws|master|mastershot|2shot|two ?shot|group|est|establishing|overview)([^a-z]|$)/i;
+  var CAMERA_WORDS = /\b(cam(era)?|angle|clip|a|b|c|d|mic|lav|audio|track|take|\d+)\b/gi;
+
+  function nameWords(file) {
+    return prettyName(file).toLowerCase().replace(CAMERA_WORDS, ' ').split(/[^a-z0-9\u00c0-\u024f]+/).filter(function (w) { return w.length > 1; });
+  }
+
+  // Cameras and mics are matched by name, never by the order files arrived in:
+  // "wide/WS/master" is the wide, and a mic goes to the camera that shares its name
+  // (Chloe.wav -> CamChloe.mp4). Only what's left over falls back to order.
   function assignSetupRoles() {
     var cams = cameras(), mics = stems();
-    var hasWide = cams.length > mics.length && cams.length > 1;
-    cams.forEach(function (c, i) { if (c.role === null) c.role = hasWide && i === 0 ? 'wide' : 'close'; });
-    var closeCams = cams.filter(function (c) { return c.role === 'close'; });
-    mics.forEach(function (m, i) {
-      if (!m.person) m.person = prettyName(m);
-      if (m.cam === null || !cams.some(function (c) { return c.id === m.cam; })) {
-        var cam = closeCams[Math.min(i, closeCams.length - 1)] || cams[0];
-        m.cam = cam ? cam.id : null;
-      }
+    var byName = function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0; };
+    cams.sort(byName);
+    mics.sort(byName);
+    state.setup.files = cams.concat(mics);
+
+    mics.forEach(function (m) { if (!m.person) m.person = prettyName(m); });
+    var taken = {};
+    mics.forEach(function (m) {
+      if (m.cam !== null && cams.some(function (c) { return c.id === m.cam; })) { taken[m.cam] = true; return; }
+      m.cam = null;
+      var words = nameWords({ name: m.person });
+      var best = null, bestScore = 0;
+      cams.forEach(function (c) {
+        if (taken[c.id] || WIDE_WORDS.test(prettyName(c))) return;
+        var cw = nameWords(c), score = 0;
+        words.forEach(function (w) { if (cw.indexOf(w) >= 0 || prettyName(c).toLowerCase().indexOf(w) >= 0) score++; });
+        if (score > bestScore) { best = c; bestScore = score; }
+      });
+      if (best) { m.cam = best.id; taken[best.id] = true; }
+    });
+
+    cams.forEach(function (c) {
+      if (c.role !== null) return;
+      if (WIDE_WORDS.test(prettyName(c))) c.role = 'wide';
+    });
+    var hasWide = cams.some(function (c) { return c.role === 'wide'; });
+    if (!hasWide && cams.length > mics.length && cams.length > 1) {
+      var spare = cams.filter(function (c) { return !taken[c.id]; })[0] || cams[0];
+      spare.role = 'wide';
+    }
+    cams.forEach(function (c) { if (c.role === null) c.role = 'close'; });
+
+    var free = cams.filter(function (c) { return c.role === 'close' && !taken[c.id]; });
+    mics.forEach(function (m) {
+      if (m.cam !== null) return;
+      var cam = free.shift() || cams.filter(function (c) { return c.role === 'close'; })[0] || cams[0];
+      m.cam = cam ? cam.id : null;
     });
   }
 
@@ -1022,6 +1168,7 @@
       var payload = {
         name: name,
         muteCameraAudio: $('optMute').checked,
+        multicam: $('optMulticam').checked,
         cameras: camOrder.map(function (c) {
           var who = mics.filter(function (m) { return m.cam === c.id; });
           var label = c.role === 'wide' || !who.length ? WIDE.label : channel(mics.indexOf(who[0])).label;
@@ -1226,7 +1373,9 @@
       return { ok: true, tracks: JSON.parse(json).map(function (i) { return { index: i, clips: [{}, {}, {}, {}] }; }) };
     },
     AC_applyEdit: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', saved: true, originalUntouched: true }; },
-    AC_applyMulticam: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', markers: 281, razors: 280 }; },
+    AC_applyMulticam: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', sequenceId: 'demo', projectPath: '/demo.prproj', count: 281, razors: 280, pieces: { ASWITCH_1_0: { angle: 1, name: 'EP 142' } } }; },
+    AC_closeProject: function () { return { ok: true, path: '/demo.prproj' }; },
+    AC_reopenProject: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', restored: 0 }; },
     AC_importXml: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
     AC_setPlayhead: function () { return { ok: true }; },
     AC_getProjectSelection: function () { return { ok: true, files: [] }; },

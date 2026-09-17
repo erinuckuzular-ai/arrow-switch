@@ -302,7 +302,7 @@ test('source offset beyond 2^53 ticks and speed-changed clips', () => {
 
 test('rejects bad input', () => {
   assert.throws(() => X.rebuild(A, { segments: [], camTracks: [0] }), /segment/);
-  assert.throws(() => X.rebuild(A, { segments: segsA, camTracks: [0], mode: 'disable' }), /mode/);
+  assert.throws(() => X.rebuild(A, { segments: segsA, camTracks: [0], mode: 'shuffle' }), /mode/);
   assert.throws(() => X.rebuild('<xmeml version="4"></xmeml>', { segments: segsA, camTracks: [0] }), /sequence/);
 });
 
@@ -339,4 +339,23 @@ test('xmlcut.js attaches to window inside a Node-enabled CEP panel', () => {
   const context = vm.createContext({ window, self: window, module: { exports: {} }, require, process, console });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'js', 'xmlcut.js'), 'utf8'), context);
   assert.ok(window.ArrowSwitchXml && typeof window.ArrowSwitchXml.rebuild === 'function');
+});
+
+test('disable mode keeps every angle, split at each switch, with off-screen pieces disabled', () => {
+  const before = [0, 1, 2].map((t) => X.listClips(A, t));
+  const { xml } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'Hide', mode: 'disable' });
+  for (const cam of [0, 1, 2]) {
+    const clips = X.listClips(xml, cam);
+    // Same coverage as the original clip: pieces tile it with no gaps.
+    const orig = before[cam].filter((c) => c.enabled);
+    assert.strictEqual(clips[0].start, orig[0].start);
+    assert.strictEqual(clips[clips.length - 1].end, orig[orig.length - 1].end);
+    for (let i = 1; i < clips.length; i++) assert.strictEqual(clips[i].start, clips[i - 1].end, `V${cam + 1} pieces tile`);
+    // Enabled exactly where this camera is the shot.
+    for (const c of clips) {
+      const mid = (c.start + c.end) / 2;
+      const seg = segsA.find((s) => mid >= s.startFrame && mid < s.endFrame);
+      assert.strictEqual(c.enabled, !!seg && seg.cam === cam, `V${cam + 1} ${c.start}-${c.end}`);
+    }
+  }
 });

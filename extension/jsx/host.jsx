@@ -42,7 +42,24 @@ function AC_trackInfo(tracks) {
     var t = tracks[i];
     var muted = false;
     try { muted = !!t.isMuted(); } catch (e) { /* video tracks have no mute */ }
-    out.push({ index: i, name: t.name || '', clipCount: t.clips.numItems, muted: muted });
+    // Where the track actually has (enabled) footage, so the panel never cuts to black.
+    var cover = [];
+    for (var c = 0; c < t.clips.numItems; c++) {
+      var k = t.clips[c];
+      if (k.disabled) continue;
+      var a = k.start.seconds, b = k.end.seconds, last = cover[cover.length - 1];
+      if (last && a <= last[1] + 0.001) last[1] = Math.max(last[1], b);
+      else cover.push([a, b]);
+    }
+    // File names on the track (a few), so the panel can tell camera audio from mics.
+    var media = [], seen = {};
+    for (var m = 0; m < t.clips.numItems && media.length < 6; m++) {
+      var mp = '';
+      try { mp = t.clips[m].projectItem ? t.clips[m].projectItem.getMediaPath() : ''; } catch (e2) { /* nested */ }
+      var base = mp ? String(mp).replace(/^.*[\\\/]/, '') : t.clips[m].name;
+      if (base && !seen[base]) { seen[base] = true; media.push(base); }
+    }
+    out.push({ index: i, name: t.name || '', clipCount: t.clips.numItems, muted: muted, cover: cover, media: media });
   }
   return out;
 }
@@ -52,6 +69,18 @@ function AC_sequenceById(id) {
     if (app.project.sequences[i].sequenceID === id) return app.project.sequences[i];
   }
   return null;
+}
+
+// The sequence the panel analysed, made active again (the user may have clicked elsewhere).
+function AC_activate(id) {
+  var seq = AC_sequenceById(id);
+  if (!seq) return null;
+  var active = app.project.activeSequence;
+  if (!active || active.sequenceID !== id) {
+    app.project.openSequence(id);
+    app.project.activeSequence = seq;
+  }
+  return seq;
 }
 
 function AC_sequenceForItem(item) {
@@ -202,10 +231,8 @@ function AC_timecode(seq, settings, frame) {
 function AC_applyEdit(payloadJson) {
   return AC_run(function () {
     var p = AC_parse(payloadJson);
-    var source = app.project.activeSequence;
-    if (!source || source.sequenceID !== p.sourceId) {
-      return { ok: false, error: 'The active sequence changed since analysis. Re-analyze first.' };
-    }
+    var source = AC_activate(p.sourceId);
+    if (!source) return { ok: false, error: 'I can’t find the sequence I listened to any more. Hit LISTEN again.' };
 
     var originalPrint = AC_fingerprint(source, p.tracks);
     var copy = AC_saveAndClone(source, p.newName);
@@ -283,9 +310,11 @@ function AC_saveAndClone(source, baseName) {
   return { seq: seq, qeSeq: qeSeq, saved: saved };
 }
 
-function AC_uniqueSequenceName(base) {
+function AC_uniqueSequenceName(base, ignoreId) {
   var names = {};
-  for (var i = 0; i < app.project.sequences.numSequences; i++) names[app.project.sequences[i].name] = true;
+  for (var i = 0; i < app.project.sequences.numSequences; i++) {
+    if (app.project.sequences[i].sequenceID !== ignoreId) names[app.project.sequences[i].name] = true;
+  }
   var name = base, n = 2;
   while (names[name]) name = base + ' ' + (n++);
   return name;
@@ -298,39 +327,99 @@ function AC_secondsTime(sec) {
 }
 
 /*
- * Multicam output. Scripts can't switch a multicam clip's angle, so we do the slow part:
- * razor the multicam clip at every switch and drop a coloured marker on each shot saying
- * which angle to pick. The editor then just clicks through angles.
- * payload: { sourceId, newName, trackIndex, segments: [{ startFrame, endFrame, cam }],
- *            angles: { cam: { label, color } } }   cam = source video track index (angle - 1)
+ * Multicam output with real angles.
+ * Scripting can razor a multicam clip but not choose its angle, and the angle only lives
+ * in the project file. So: duplicate, razor at every switch, switch Multi-Camera on for
+ * each piece, and name each piece with a unique tag. The panel then saves + closes the
+ * project, writes each tag's angle into the file (prproj.js) and reopens it.
+ * payload: { sourceId, newName, trackIndex, segments: [{ startFrame, endFrame, cam }] }
+ *          cam = source video track index (angle - 1)
+ * Returns pieces: { tag: { angle, name } } and the project path to patch.
  */
 function AC_applyMulticam(payloadJson) {
   return AC_run(function () {
     var p = AC_parse(payloadJson);
-    var source = app.project.activeSequence;
-    if (!source || source.sequenceID !== p.sourceId) {
-      return { ok: false, error: 'The active sequence changed since analysis. Re-analyze first.' };
-    }
+    var source = AC_activate(p.sourceId);
+    if (!source) return { ok: false, error: 'I can’t find the sequence I listened to any more. Hit LISTEN again.' };
     var copy = AC_saveAndClone(source, p.newName);
     if (copy.error) return { ok: false, error: copy.error };
-    var seq = copy.seq, settings = seq.getSettings();
+    var seq = copy.seq, settings = seq.getSettings(), fps = AC_fps(seq);
     var qeTrack = copy.qeSeq.getVideoTrackAt(p.trackIndex);
-    var fps = AC_fps(seq), razors = 0, markers = 0;
-    for (var s = 0; s < p.segments.length; s++) {
-      var seg = p.segments[s];
-      if (s > 0 && seg.cam !== p.segments[s - 1].cam) {
-        qeTrack.razor(AC_timecode(seq, settings, seg.startFrame));
-        razors++;
-      }
-      var angle = p.angles[seg.cam] || { label: 'Angle ' + (seg.cam + 1), color: 5 };
-      var m = seq.markers.createMarker(seg.startFrame / fps);
-      m.name = angle.label;
-      m.comments = 'Arrow Switch: switch this shot to angle ' + (seg.cam + 1);
-      try { m.end = seg.endFrame / fps; } catch (e) { /* point markers on older Premiere */ }
-      try { m.setColorByIndex(angle.color); } catch (e2) { /* colourless markers on older Premiere */ }
-      markers++;
+    var razors = 0;
+    for (var s = 1; s < p.segments.length; s++) {
+      if (p.segments[s].cam === p.segments[s - 1].cam) continue;
+      qeTrack.razor(AC_timecode(seq, settings, p.segments[s].startFrame));
+      razors++;
     }
-    return { ok: true, name: seq.name, razors: razors, markers: markers, saved: copy.saved };
+
+    var run = String(new Date().getTime());
+    var clips = seq.videoTracks[p.trackIndex].clips;
+    var pieces = {}, count = 0, skipped = 0;
+    // QE lists empty gaps as items too; walk both lists in time order and pair real clips.
+    var qi = 0, qCount = qeTrack.numItems;
+    for (var c = 0; c < clips.numItems; c++) {
+      var clip = clips[c], item = null;
+      while (qi < qCount) {
+        var cand = qeTrack.getItemAt(qi++);
+        if (cand && cand.type !== 'Empty') { item = cand; break; }
+      }
+      if (!item) break;
+      var isNest = false;
+      try { isNest = clip.projectItem && (clip.projectItem.isSequence() || clip.projectItem.isMulticamClip()); } catch (e) { /* ignore */ }
+      if (!isNest) { skipped++; continue; }
+      var mid = Math.floor(((clip.start.seconds + clip.end.seconds) / 2) * fps);
+      var seg = AC_findSegment(p.segments, mid);
+      if (!seg) { skipped++; continue; }
+      try { if (!item.multicamEnabled && item.canDoMulticam()) item.setMulticam(true); } catch (e2) { /* already multicam */ }
+      var tag = 'ASWITCH_' + run + '_' + c;
+      pieces[tag] = { angle: seg.cam, name: clip.name };
+      item.setName(tag);
+      count++;
+    }
+    try { app.project.save(); } catch (e3) { /* checked by the panel */ }
+    return {
+      ok: true, name: seq.name, sequenceId: seq.sequenceID, projectPath: app.project.path,
+      razors: razors, pieces: pieces, count: count, skipped: skipped, saved: copy.saved
+    };
+  });
+}
+
+// Save and close the project so the panel can write angles into the file.
+function AC_closeProject() {
+  return AC_run(function () {
+    var path = app.project.path;
+    if (!path) return { ok: false, error: 'This project has never been saved, so I can’t set angles in it.' };
+    app.project.save();
+    app.project.closeDocument(0, 0);
+    return { ok: true, path: path };
+  });
+}
+
+/*
+ * Reopen the project after the angle patch and show the new sequence. Any piece the patch
+ * missed still carries its tag, so put its original name back here.
+ * payload: { path, sequenceId, names: { tag: originalName } }
+ */
+function AC_reopenProject(payloadJson) {
+  return AC_run(function () {
+    var p = AC_parse(payloadJson);
+    if (!app.openDocument(p.path, true, true, true, true)) return { ok: false, error: 'Premiere could not reopen ' + p.path };
+    var seq = AC_sequenceById(p.sequenceId);
+    if (!seq) return { ok: false, error: 'Reopened the project but could not find the new sequence.' };
+    app.project.openSequence(seq.sequenceID);
+    app.project.activeSequence = seq;
+    var restored = 0;
+    app.enableQE();
+    var qs = qe.project.getActiveSequence();
+    for (var t = 0; t < seq.videoTracks.numTracks; t++) {
+      var qt = qs.getVideoTrackAt(t);
+      for (var i = 0; i < qt.numItems; i++) {
+        var it = qt.getItemAt(i);
+        if (it && it.type !== 'Empty' && p.names.hasOwnProperty(it.name)) { it.setName(p.names[it.name]); restored++; }
+      }
+    }
+    if (restored) { try { app.project.save(); } catch (e) { /* ignore */ } }
+    return { ok: true, name: seq.name, restored: restored };
   });
 }
 
@@ -361,7 +450,7 @@ function AC_importXml(payloadJson) {
       if (!before[app.project.sequences[j].sequenceID]) seq = app.project.sequences[j];
     }
     if (!seq) return { ok: false, error: 'The XML imported but no new sequence appeared.' };
-    seq.name = AC_uniqueSequenceName(p.name);
+    seq.name = AC_uniqueSequenceName(p.name, seq.sequenceID);
     app.project.openSequence(seq.sequenceID);
     return { ok: true, name: seq.name };
   });
@@ -451,6 +540,11 @@ function AC_buildEpisode(payloadJson) {
       return { ok: false, error: 'I need ' + nc + ' video and ' + (nc + ns) + ' audio tracks in “' + seqName + '”. Add tracks and press Build again.' };
     }
 
+    // Premiere snaps clip starts to frames (upwards). Round to the nearest frame instead so
+    // every file lands within half a frame of where the audio sync put it.
+    var fr = AC_fps(seq);
+    for (var rc = 0; rc < all.length; rc++) all[rc].startSec = Math.round(all[rc].startSec * fr) / fr;
+
     var placed = [];
     for (var c = 0; c < nc; c++) {
       seq.videoTracks[c].overwriteClip(p.cameras[c].item, AC_secondsTime(p.cameras[c].startSec));
@@ -475,7 +569,25 @@ function AC_buildEpisode(payloadJson) {
       var got = tr.clips.numItems ? tr.clips[0].start.seconds : -1;
       if (Math.abs(got - placed[q].want) > frame) off.push(placed[q].kind + ' ' + (placed[q].index + 1));
     }
-    return { ok: true, sequenceId: seq.sequenceID, name: seq.name, misplaced: off };
+    var result = { ok: true, sequenceId: seq.sequenceID, name: seq.name, misplaced: off, syncedId: seq.sequenceID };
+
+    // Optional multicam edit: the synced sequence nested on V1 with Multi-Camera switched on
+    // (angle 1 = V1 of the synced sequence, and so on).
+    if (p.multicam) {
+      var edit = app.project.createNewSequenceFromClips(AC_uniqueSequenceName(p.name + ' – Multicam'), [seq.projectItem], bin);
+      if (!edit) return { ok: false, error: 'Built “' + seq.name + '” but could not create the multicam edit.' };
+      app.project.openSequence(edit.sequenceID);
+      app.project.activeSequence = edit;
+      app.enableQE();
+      var mcItem = qe.project.getActiveSequence().getVideoTrackAt(0).getItemAt(0);
+      if (!mcItem || !mcItem.canDoMulticam() || !mcItem.setMulticam(true)) {
+        return { ok: false, error: 'Built “' + seq.name + '” but Premiere would not switch Multi-Camera on for the edit.' };
+      }
+      result.sequenceId = edit.sequenceID;
+      result.name = edit.name;
+    }
+    try { app.project.save(); } catch (e) { /* unsaved project is fine */ }
+    return result;
   });
 }
 
