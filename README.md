@@ -50,7 +50,15 @@ Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 
    Arrow Switch never cuts to a camera that has no footage at that moment (late-starting or
    early-stopping cameras): those shots use the wide, or whichever camera is rolling.
-4. **LISTEN!**, check the preview (click it to jump there in Premiere), then **CUT IT!**
+4. Extras (all optional):
+   - **🎭 Reaction shots**: a quick cut to whoever laughs or goes "no way" while someone else
+     is talking, then straight back. You set how often at most.
+   - **✂️ Trim dead air** (Fast cuts / Fast hide): removes silences longer than your threshold
+     from every track, keeping a breath either side. Nobody's words are ever trimmed.
+   - **🔥 Best clips**: finds the liveliest 30–75 s stretches (reactions, quick back-and-forth,
+     energy) and lists them. Click one to jump there; they're also added as markers on the new sequence.
+5. **LISTEN!**, check the preview (gold = best clips, dark = dead air, notches = reactions;
+   click it to jump there in Premiere), then **CUT IT!**
 
 Arrow Switch always saves your project first and works on a new sequence
 (`<name> – Arrow Switch`); your original is never changed. ⌘/Ctrl+Enter does the next step.
