@@ -3,7 +3,7 @@
 Automatic multicam podcast editing for Adobe Premiere Pro (2022 and newer).
 Arrow Switch syncs everyone's mic to the cameras, listens to who is talking, and cuts
 between their cameras — with wide shots for cross-talk and long monologues. It is run by a
-microphone with a beer, and it will be rude to you (there's a nice mode).
+talking microphone, and it will be rude to you (there's a nice mode).
 
 | Set up + sync | Cut | Dark mode | Multicam |
 |---|---|---|---|

@@ -156,7 +156,7 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
 .icon-btn:hover { transform: translateY(-2px) rotate(-8deg); }
 .icon-btn:active { transform: scale(0.9); }
 
-/* The mascot: a microphone with a beer. */
+/* The mascot: a talking microphone. */
 .mascot { width: 96px; height: auto; overflow: visible; filter: drop-shadow(6px 10px 10px rgba(var(--shade), 0.3)); cursor: pointer; }
 .mascot * { stroke-linecap: round; stroke-linejoin: round; }
 .mascot .ball { fill: url(#gMetal); }
@@ -169,12 +169,6 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
 .mascot .cable { fill: none; stroke: #3b2a55; stroke-width: 5; }
 .mascot .arm { fill: none; stroke: #3b2a55; stroke-width: 6; }
 .mascot .hand { fill: #3b2a55; }
-.mascot .mug { fill: url(#gBeer); stroke: #b86412; stroke-width: 2; }
-.mascot .mug-handle { fill: none; stroke: #f3c16a; stroke-width: 5; }
-.mascot .foam { fill: #fffaf0; stroke: #e9dcc3; stroke-width: 1.5; }
-.mascot .bubbles { stroke: #fff4c8; stroke-width: 2; opacity: 0.8; }
-.mascot .splash { fill: none; stroke: #ffe39a; stroke-width: 3; }
-.mascot .puddle { fill: #f5b33d; opacity: 0.85; }
 .mascot .eye { fill: #fff; stroke: #3b2a55; stroke-width: 2.5; }
 .mascot .pupils circle { fill: #3b2a55; }
 .mascot .lid { fill: none; stroke: #3b2a55; stroke-width: 3; }
@@ -195,14 +189,17 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
 .mascot.mood-done .not-done, .mascot.mood-error .not-error { display: none; }
 .mascot.mood-done .blush, .mascot.mood-poke .blush { opacity: 0.8; }
 
-.mascot .body, .mascot .head, .mascot .pupils, .mascot .beer-arm { transform-box: fill-box; }
+.mascot .body, .mascot .head, .mascot .pupils, .mascot .arm-left { transform-box: fill-box; }
+.mascot .dizzy path { fill: #ffd772; }
+.mascot .floor-shadow { fill: rgba(var(--shade), 0.28); filter: blur(3px); }
 .mascot .body { transform-origin: 50% 100%; }
 .mascot .head { transform-origin: 50% 90%; }
 .mascot .pupils { transform-origin: 50% 50%; }
-.mascot .beer-arm { transform-origin: 100% 0%; }
+.mascot .arm-left { transform-origin: 100% 100%; }
 .mood-idle .body { animation: sway 3.6s ease-in-out infinite; }
 .mood-idle .pupils { animation: blink 4s infinite; }
-.mood-idle .beer-arm { animation: sip 7s ease-in-out infinite; }
+.mood-idle .arm-left { animation: wave 5s ease-in-out infinite; }
+.mood-error .dizzy { animation: spin 2.4s linear infinite; transform-box: fill-box; transform-origin: 50% 50%; }
 .mood-listen .head { animation: bob 0.6s ease-in-out infinite alternate; }
 .mood-listen .pupils { animation: look 1.6s ease-in-out infinite; }
 .mood-cut .body { animation: shake 0.12s linear infinite; }
@@ -210,7 +207,7 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
 .mood-error .head { animation: wobble 1.2s ease-in-out infinite; }
 .mood-poke .body { animation: squish 0.5s var(--spring); }
 @keyframes sway { 50% { transform: rotate(3deg) translateY(-2px); } }
-@keyframes sip { 0%, 80%, 100% { transform: rotate(0); } 86%, 94% { transform: rotate(-38deg) translate(8px, -14px); } }
+@keyframes wave { 0%, 70%, 100% { transform: rotate(0); } 76%, 88% { transform: rotate(-18deg); } 82%, 94% { transform: rotate(12deg); } }
 @keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
 @keyframes bob { from { transform: rotate(-6deg); } to { transform: rotate(6deg) translateY(-2px); } }
 @keyframes look { 0%, 100% { transform: translateX(-3px); } 50% { transform: translateX(3px); } }
@@ -280,7 +277,7 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
   background: linear-gradient(160deg, var(--card-a), var(--card-b));
   border-radius: 28px;
   box-shadow: 10px 12px 24px rgba(var(--shade), 0.22), inset -5px -7px 12px rgba(var(--shade), 0.14), inset 5px 6px 12px rgba(var(--hi), var(--hi-a));
-  animation: rise 0.5s var(--ease) both;
+  animation: rise 0.5s var(--ease) backwards;
 }
 .pane .sticker:nth-child(2) { animation-delay: 0.06s; }
 .pane .sticker:nth-child(3) { animation-delay: 0.12s; }
@@ -613,9 +610,160 @@ canvas#preview { display: block; width: 100%; height: 40px; border-radius: 13px;
   position: absolute; top: -20px; width: 9px; height: 13px; border-radius: 3px;
   animation: fall 1.8s cubic-bezier(.2, .6, .4, 1) forwards;
 }
-.confetti i.beer { width: auto; height: auto; font-size: 18px; font-style: normal; }
+.confetti i.star { width: auto; height: auto; font-size: 16px; font-style: normal; }
 @keyframes fall { to { transform: translate(var(--dx), 110vh) rotate(var(--rot)); opacity: 0.2; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------------------------------------------------------------- action dock */
+body { padding-bottom: 132px; }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 10px 14px 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--card-a) 38%);
+  pointer-events: none;
+}
+.dock-inner { pointer-events: auto; }
+.dock .big { margin: 0; }
+.dock-row { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 26px; margin-top: 4px; }
+.dock-row .link { margin: 0; }
+.dock-info { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock[data-tab="cut"] .dock-setup, .dock[data-tab="setup"] .dock-cut { display: none; }
+.dock.empty .dock-cut { display: none; }
+.dock-cut, .dock-setup { animation: rise 0.35s var(--ease) both; }
+.delta {
+  padding: 1px 8px; border-radius: 999px; font-size: 11px; color: #3b2a55;
+  background: var(--butter); box-shadow: 2px 3px 6px rgba(var(--shade), 0.2);
+  animation: pop 0.35s var(--spring);
+}
+.delta.down { background: var(--mint); }
+
+/* ---------------------------------------------------------------- folding cards */
+.fold-head {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  width: 100%; margin: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+}
+.fold-head h2 { margin: 0; white-space: nowrap; }
+.fold-sum {
+  min-width: 0; font-size: 11.5px; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity 0.25s;
+}
+.chev { font-size: 14px; color: var(--ink-soft); transition: transform 0.35s var(--spring); }
+.fold-body { overflow: hidden; margin-top: 12px; }
+.fold.collapsed .fold-body { margin-top: 0; opacity: 0; }
+.fold.collapsed .fold-sum { opacity: 1; }
+.fold.collapsed .chev { transform: rotate(-90deg); }
+.fold.collapsed { padding-bottom: 14px; }
+/* The body holds several children; wrap them so the 0fr row can shrink them together. */
+.fold-body { display: block; max-height: 2000px; transition: max-height 0.45s var(--ease), margin-top 0.4s var(--ease), opacity 0.3s; }
+.fold.collapsed .fold-body { max-height: 0; }
+
+/* ---------------------------------------------------------------- last run + toast */
+.last-run {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px;
+  margin-top: 12px; padding: 9px 10px; border-radius: 16px;
+  background: var(--clay-2);
+  box-shadow: inset 3px 4px 8px rgba(var(--shade), 0.18), inset -3px -3px 6px rgba(var(--hi), var(--hi-a));
+  animation: rise 0.4s var(--spring) both;
+}
+.last-run-text { display: grid; min-width: 0; font-size: 12px; }
+.last-run-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+.last-run .pill { padding: 5px 11px; font-size: 12px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 128px; z-index: 6; max-width: calc(100% - 40px);
+  padding: 7px 14px; border-radius: 999px;
+  background: #3b2a55; color: #fff; font-size: 12px;
+  box-shadow: 5px 8px 18px rgba(59, 42, 85, 0.35);
+  transform: translateX(-50%);
+  animation: toast-in 0.35s var(--spring);
+}
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 10px) scale(0.95); } }
+
+
+/* ================================================================ 3D pass
+ * Depth without WebGL: key-cap buttons with a solid bottom edge that press down, raised
+ * chips, cards that tilt a few degrees toward the pointer with a moving highlight, and a
+ * mascot that sways in perspective. All Chromium 88 safe; off with reduced motion. */
+
+:root, body[data-theme="light"] { --edge: rgba(88, 54, 140, 0.28); --edge-strong: rgba(60, 30, 110, 0.38); }
+body[data-theme="dark"] { --edge: rgba(0, 0, 0, 0.55); --edge-strong: rgba(0, 0, 0, 0.7); }
+
+/* Key-cap buttons */
+.big {
+  border-radius: 22px;
+  box-shadow:
+    0 7px 0 #c23a4c,
+    0 14px 24px rgba(220, 80, 90, 0.35),
+    inset 0 -4px 10px rgba(160, 30, 50, 0.25),
+    inset 0 5px 10px rgba(255, 255, 255, 0.45);
+  transform: translateY(0);
+  transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease), filter 0.2s;
+}
+.big:hover { transform: translateY(-2px); filter: brightness(1.04); }
+.big:active {
+  transform: translateY(6px);
+  box-shadow: 0 1px 0 #c23a4c, 0 4px 10px rgba(220, 80, 90, 0.3), inset 0 3px 8px rgba(120, 20, 40, 0.3);
+}
+.big.go { box-shadow: 0 7px 0 #17704a, 0 14px 24px rgba(40, 150, 110, 0.35), inset 0 -4px 10px rgba(20, 110, 80, 0.28), inset 0 5px 10px rgba(255, 255, 255, 0.45); }
+.big.go:active { box-shadow: 0 1px 0 #17704a, 0 4px 10px rgba(40, 150, 110, 0.3), inset 0 3px 8px rgba(10, 70, 50, 0.35); }
+.big.go-violet { box-shadow: 0 7px 0 #5237b8, 0 14px 24px rgba(111, 79, 224, 0.35), inset 0 -4px 10px rgba(60, 30, 140, 0.28), inset 0 5px 10px rgba(255, 255, 255, 0.45); }
+.big.go-violet:active { box-shadow: 0 1px 0 #5237b8, 0 4px 10px rgba(111, 79, 224, 0.3), inset 0 3px 8px rgba(40, 20, 100, 0.35); }
+.big:disabled, .big.go:disabled, .big.go-violet:disabled {
+  transform: translateY(6px);
+  box-shadow: 0 1px 0 var(--edge), inset 0 3px 8px rgba(var(--shade), 0.22);
+}
+.dock { padding-top: 16px; }
+.dock .big { margin-bottom: 6px; }
+
+/* Raised chips */
+.preset, .outputs button, .icon-btn, .pill, .remove, .file, .channel, .wide-row {
+  box-shadow:
+    0 4px 0 var(--edge),
+    0 9px 16px rgba(var(--shade), 0.16),
+    inset -2px -3px 7px rgba(var(--shade), 0.1),
+    inset 2px 3px 7px rgba(var(--hi), var(--hi-a));
+}
+.preset:active, .outputs button:active, .icon-btn:active, .pill:active, .remove:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--edge), 0 3px 8px rgba(var(--shade), 0.16); }
+.preset[aria-checked="true"], .outputs button[aria-checked="true"] {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--edge-strong), inset 0 4px 10px rgba(80, 50, 160, 0.28), inset 0 -3px 8px rgba(255, 255, 255, 0.45);
+}
+.channel { box-shadow: 0 5px 0 rgba(88, 54, 140, 0.25), 0 12px 20px rgba(var(--shade), 0.18), inset 3px 4px 8px rgba(255, 255, 255, 0.55); }
+.tab-slider { box-shadow: 0 4px 0 var(--edge), 0 8px 14px rgba(var(--shade), 0.2), inset 0 3px 8px rgba(var(--hi), var(--hi-a)); }
+.num { box-shadow: 0 3px 0 #5f45c9, 0 6px 10px rgba(var(--shade), 0.3), inset 2px 2px 4px rgba(255, 255, 255, 0.6); }
+
+/* Cards tilt toward the pointer (vars set in main.js) with a highlight that follows it */
+.sticker {
+  --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 0%;
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
+  box-shadow:
+    0 6px 0 var(--edge),
+    0 18px 30px rgba(var(--shade), 0.22),
+    inset -5px -7px 12px rgba(var(--shade), 0.12),
+    inset 5px 6px 12px rgba(var(--hi), var(--hi-a));
+}
+.sticker::after {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%);
+  opacity: 0; transition: opacity 0.35s;
+}
+.sticker.tilting::after { opacity: 1; }
+body[data-theme="dark"] .sticker::after { background: radial-gradient(circle at var(--mx) var(--my), rgba(190, 160, 255, 0.14), rgba(190, 160, 255, 0) 55%); }
+
+/* Mascot sways in 3D */
+.hero { perspective: 500px; }
+.mascot { transform-style: preserve-3d; animation: turn 9s ease-in-out infinite; }
+@keyframes turn { 0%, 100% { transform: rotateY(-10deg) rotateX(2deg); } 50% { transform: rotateY(12deg) rotateX(-2deg); } }
+
+/* Dock glass */
+.dock { background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--card-a) 42%); }
+.dock-inner { transform: translateZ(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sticker, .mascot { transform: none !important; }
 }

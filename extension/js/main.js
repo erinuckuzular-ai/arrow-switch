@@ -97,6 +97,9 @@
     busy: false,
     listenNote: '',
     pendingMapping: {},  // sequenceId -> mapping from Set up
+    lastRun: null,       // { id, name, mode } of the sequence Arrow Switch made last
+    created: {},         // sequence ids Arrow Switch made this session (never auto-followed)
+    lastCuts: null,      // cut count shown before the latest settings change
     setup: { files: [], job: null, busy: false }
   };
 
@@ -114,6 +117,17 @@
   }
 
   function setMood(mood) { $('mascot').setAttribute('class', 'mascot mood-' + mood); }
+
+  // Small confirmations that shouldn't replace what the mascot is saying.
+  var toastTimer;
+  function toast(msg) {
+    var el = $('toast');
+    el.hidden = true; void el.offsetWidth;
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+  }
 
   function sayError(err) { say(t('error', { msg: escapeHtml(err && err.message ? err.message : String(err)) }), 'error'); }
 
@@ -218,7 +232,7 @@
   }
 
   function applyTone() {
-    $('toneBtn').textContent = ui.tone === 'mean' ? '🍺' : '🧃';
+    $('toneBtn').textContent = ui.tone === 'mean' ? '😈' : '😇';
     $('toneBtn').title = ui.tone === 'mean' ? 'Tone: mean (click for nice)' : 'Tone: nice (click for mean)';
   }
 
@@ -230,6 +244,7 @@
     document.querySelector('.tabs').setAttribute('data-active', tab);
     $('setupPane').hidden = tab !== 'setup';
     $('cutPane').hidden = tab !== 'cut';
+    $('dock').setAttribute('data-tab', tab);
     if (tab === 'setup' && !state.setup.busy) say(t('setupHello'));
     if (tab === 'cut' && !state.busy) {
       if (state.seq && state.segments) renderProgram();
@@ -252,7 +267,7 @@
         state.speech = null;
         state.notes = [];
         state.listenNote = '';
-        var pending = state.pendingMapping[seq.id];
+        var pending = state.pendingMapping[seq.id] || rememberedMapping(seq);
         if (pending) {
           state.speakers = pending.speakers;
           state.wideCam = pending.wideCam;
@@ -260,6 +275,8 @@
         } else {
           autoMatch(seq);
         }
+        state.lastCuts = null;
+        setFolded(false);
         if (seq.multicam) {
           // Multicam sequence: real angle switches are almost certainly what you want.
           state.settings.output = 'multicam';
@@ -272,10 +289,12 @@
       }
       $('empty').hidden = true;
       $('app').hidden = false;
+      $('dock').classList.remove('empty');
       renderSpeakers();
       renderProgram();
     }).catch(function (err) {
       state.seq = null;
+      $('dock').classList.add('empty');
       $('seqLabel').textContent = 'No sequence';
       $('mcBadge').hidden = true;
       $('empty').hidden = false;
@@ -284,6 +303,29 @@
       if (quiet) say(t('hello'));
       else sayError(err);
     });
+  }
+
+  // Who's who is remembered per sequence, as long as the tracks it points at still exist.
+  var MAP_KEY = 'arrow-switch-maps';
+  function rememberMapping() {
+    if (!state.seq) return;
+    try {
+      var maps = JSON.parse(storageGet(MAP_KEY) || '{}');
+      maps[state.seq.id] = { t: Date.now(), wideCam: state.wideCam, speakers: state.speakers };
+      var ids = Object.keys(maps).sort(function (a, b) { return maps[b].t - maps[a].t; });
+      ids.slice(60).forEach(function (id) { delete maps[id]; });
+      storageSet(MAP_KEY, JSON.stringify(maps));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function rememberedMapping(seq) {
+    try {
+      var m = JSON.parse(storageGet(MAP_KEY) || '{}')[seq.id];
+      if (!m || !m.speakers || !m.speakers.length) return null;
+      var okA = function (i) { return i >= 0 && i < seq.audioTracks.length; };
+      var okV = function (i) { return i >= -1 && i < seq.videoTracks.length; };
+      if (!okV(m.wideCam) || !m.speakers.every(function (sp) { return okA(sp.audio) && okV(sp.video); })) return null;
+      return m;
+    } catch (e) { return null; }
   }
 
   function speakerName(track, i) {
@@ -395,12 +437,15 @@
       });
       row.querySelector('input').addEventListener('input', function (e) {
         sp.name = e.target.value || 'Speaker ' + (i + 1);
+        rememberMapping();
+        renderSummaries();
         if (state.segments) renderProgram();
       });
       row.querySelectorAll('select').forEach(function (sel) {
         sel.addEventListener('change', function () {
           sp[sel.dataset.kind] = Number(sel.value);
           $('autoTag').hidden = true;
+          rememberMapping();
           mappingChanged();
         });
       });
@@ -408,6 +453,7 @@
         if (state.speakers.length <= 1) return say(t('needSpeaker'), 'error');
         state.speakers.splice(i, 1);
         renderSpeakers();
+        rememberMapping();
         mappingChanged();
       });
       box.appendChild(row);
@@ -481,6 +527,7 @@
       b.setAttribute('aria-checked', String(b.getAttribute('data-id') === state.preset));
     });
     var s = state.settings;
+    renderSummaries();
     $('pacingDesc').textContent = 'shots ≥ ' + SLIDERS.minShotSec(s.minShotSec) +
       ' · wide ' + (s.maxShotSec ? 'every ' + s.maxShotSec + ' s' : 'off') +
       ' · ignores blips < ' + SLIDERS.minTalkSec(s.minTalkSec);
@@ -532,15 +579,57 @@
     })();
   }
 
+  // One-line summaries shown when the first two cards are folded away.
+  function renderSummaries() {
+    if (!state.seq) return;
+    var camName = function (i) {
+      var tr = state.seq.videoTracks[i], prefix = (state.seq.multicam ? 'Angle ' : 'V') + (i + 1);
+      return tr && tr.name && !/^video \d+$/i.test(tr.name) ? prefix + ' ' + tr.name : prefix;
+    };
+    var who = state.speakers.map(function (sp) { return sp.name + ' → ' + camName(sp.video); });
+    if (state.wideCam >= 0) who.push('Wide → ' + camName(state.wideCam));
+    $('whoSum').textContent = who.join(' · ');
+    var p = state.preset ? presetStore.get(state.preset) : null;
+    $('howSum').textContent = (p ? p.name : 'Custom') + ' · shots ≥ ' + SLIDERS.minShotSec(state.settings.minShotSec);
+  }
+
+  function setFolded(folded) {
+    ['whoCard', 'howCard'].forEach(function (id) {
+      $(id).classList.toggle('collapsed', folded);
+      $(id).querySelector('.fold-head').setAttribute('aria-expanded', String(!folded));
+    });
+  }
+
+  var OUTPUT_LABEL = { fast: '⚡ Fast cuts', fasthide: '⚡ Fast hide', multicam: '🎛 Multicam', hide: '🐢 Classic' };
+
+  function renderDock(cuts) {
+    if (!state.seq) return;
+    $('dockInfo').textContent = state.segments
+      ? OUTPUT_LABEL[state.settings.output] + ' · ' + cuts + ' cuts · ' + state.seq.name
+      : 'Ready to listen to ' + state.speakers.length + (state.speakers.length === 1 ? ' mic' : ' mics') + ' · ' + state.seq.name;
+    var d = $('cutDelta');
+    if (state.segments && state.lastCuts !== null && state.lastCuts !== cuts) {
+      var diff = cuts - state.lastCuts;
+      d.textContent = (diff > 0 ? '+' : '−') + Math.abs(diff) + ' cuts';
+      d.className = 'delta' + (diff < 0 ? ' down' : '');
+      d.hidden = false; void d.offsetWidth;
+      clearTimeout(renderDock.timer);
+      renderDock.timer = setTimeout(function () { d.hidden = true; }, 2200);
+    }
+    state.lastCuts = state.segments ? cuts : null;
+  }
+
   function renderProgram(reveal) {
     var has = !!state.segments && haveLevelsForAll();
     $('result').hidden = !has;
     $('analyze').hidden = has;
     $('apply').hidden = !has;
     $('reanalyze').hidden = !has;
+    $('readyHint').hidden = has;
     $('programMeta').textContent = '';
     $('apply').classList.toggle('ready', has);
-    if (!has) return;
+    renderSummaries();
+    if (!has) { renderDock(0); return; }
 
     var dur = state.seq.durationSec;
     drawPreview(state.segments, dur);
@@ -569,6 +658,7 @@
     var avg = state.segments.length ? dur / state.segments.length : 0;
     if (reveal) countUp($('programMeta'), cuts, ' cuts!');
     else $('programMeta').textContent = cuts + ' cuts!';
+    renderDock(cuts);
     if (!state.busy) say((state.listenNote || '') + t('result', { cuts: cuts, avg: avg.toFixed(1) }));
   }
 
@@ -702,11 +792,11 @@
     var colors = CHANNELS.map(function (c) { return c.color; }).concat(['#ff7a6b', '#8f71f2']);
     var html = '';
     for (var i = 0; i < 46; i++) {
-      var beer = i % 9 === 0;
-      html += '<i class="' + (beer ? 'beer' : '') + '" style="left:' + Math.round(Math.random() * 100) + '%;' +
-        (beer ? '' : 'background:' + colors[i % colors.length] + ';') +
+      var star = i % 9 === 0;
+      html += '<i class="' + (star ? 'star' : '') + '" style="left:' + Math.round(Math.random() * 100) + '%;' +
+        (star ? '' : 'background:' + colors[i % colors.length] + ';') +
         '--dx:' + Math.round(Math.random() * 120 - 60) + 'px;--rot:' + Math.round(Math.random() * 720 - 360) + 'deg;' +
-        'animation-delay:' + (Math.random() * 0.35).toFixed(2) + 's">' + (beer ? '🍺' : '') + '</i>';
+        'animation-delay:' + (Math.random() * 0.35).toFixed(2) + 's">' + (star ? '✂️' : '') + '</i>';
     }
     box.innerHTML = html;
     setTimeout(function () { box.innerHTML = ''; }, 2600);
@@ -807,7 +897,10 @@
         state.busy = false;
         if (!haveLevelsForAll()) return;
         decide();
+        state.lastCuts = null;
+        setFolded(true);
         renderProgram(true);
+        setTimeout(function () { document.querySelector('#cutPane .sticker:last-child').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
       })
       .catch(function (err) {
         $('meters').hidden = true;
@@ -850,17 +943,25 @@
         run = multicamCut(frames, newName, secs);
       } else if (output === 'fast' || output === 'fasthide') {
         run = fastCut(frames, newName, output === 'fasthide' ? 'disable' : 'cut').then(function (res) {
-          return t(output === 'fasthide' ? 'fastHideDone' : 'fastDone', { name: escapeHtml(res.name), secs: secs() });
+          return { id: res.sequenceId, name: res.name, msg: t(output === 'fasthide' ? 'fastHideDone' : 'fastDone', { name: escapeHtml(res.name), secs: secs() }) };
         });
       } else {
         run = callHost('AC_applyEdit', JSON.stringify({
           sourceId: seq.id, newName: newName, mode: 'disable', tracks: involvedTracks(frames), segments: frames
         })).then(function (res) {
           if (res.originalUntouched === false) throw new Error(t('changedOriginal', { name: res.name }));
-          return t('done', { secs: secs(), name: escapeHtml(res.name) });
+          return { id: res.sequenceId, name: res.name, msg: t('done', { secs: secs(), name: escapeHtml(res.name) }) };
         });
       }
-      run.then(function (msg) { say(msg, 'done'); confetti(); })
+      run.then(function (out) {
+        say(out.msg, 'done');
+        confetti();
+        if (out.id) {
+          state.created[out.id] = true;
+          state.lastRun = { id: out.id, name: out.name, mode: output, sourceId: seq.id };
+          renderLastRun();
+        }
+      })
         .catch(sayError)
         .then(function () { setBusy(false); });
     }, 60);
@@ -885,8 +986,10 @@
         if (IN_PREMIERE) outcome = patchProjectAngles(closed.path, res.pieces);
         return callHost('AC_reopenProject', JSON.stringify({ path: closed.path, sequenceId: res.sequenceId, names: names }))
           .then(function () {
-            if (outcome.missing.length) return t('multicamPartial', { count: outcome.set, name: escapeHtml(res.name), missing: outcome.missing.length });
-            return t('multicamDone', { count: outcome.set, name: escapeHtml(res.name), secs: secs() });
+            var msg = outcome.missing.length
+              ? t('multicamPartial', { count: outcome.set, name: escapeHtml(res.name), missing: outcome.missing.length })
+              : t('multicamDone', { count: outcome.set, name: escapeHtml(res.name), secs: secs() });
+            return { id: res.sequenceId, name: res.name, msg: msg };
           });
       });
     });
@@ -1038,6 +1141,9 @@
 
   function renderFiles() {
     var cams = cameras(), mics = stems();
+    $('setupInfo').textContent = state.setup.files.length
+      ? cams.length + (cams.length === 1 ? ' camera · ' : ' cameras · ') + mics.length + (mics.length === 1 ? ' mic' : ' mics')
+      : 'Add your camera and mic files first';
     var list = $('fileList');
     list.innerHTML = '';
     cams.concat(mics).forEach(function (f, idx) {
@@ -1212,6 +1318,53 @@
     $('dropZone').disabled = busy;
   }
 
+  function renderLastRun() {
+    var lr = state.lastRun;
+    $('lastRun').hidden = !lr;
+    if (!lr) return;
+    $('lastRunName').textContent = OUTPUT_LABEL[lr.mode] + ' · ' + lr.name;
+  }
+
+  function showLastRun() {
+    if (!state.lastRun) return;
+    callHost('AC_openSequence', state.lastRun.id).then(function () { toast('Opened “' + state.lastRun.name + '” in Premiere'); }).catch(sayError);
+  }
+
+  // Undo = delete the sequence Arrow Switch made (the original was never touched). Two clicks.
+  function undoLastRun() {
+    var lr = state.lastRun, btn = $('lastRunUndo');
+    if (!lr) return;
+    if (!btn.classList.contains('confirm')) {
+      btn.classList.add('confirm');
+      btn.textContent = 'Sure?';
+      setTimeout(function () { btn.classList.remove('confirm'); btn.textContent = 'Undo'; }, 3000);
+      return;
+    }
+    btn.classList.remove('confirm');
+    btn.textContent = 'Undo';
+    callHost('AC_deleteSequence', lr.id).then(function (res) {
+      state.lastRun = null;
+      renderLastRun();
+      if (lr.sourceId) callHost('AC_openSequence', lr.sourceId).catch(function () {});
+      toast(ui.tone === 'mean' ? 'Deleted “' + res.name + '”. Like it never happened.' : 'Deleted “' + res.name + '”.');
+    }).catch(sayError);
+  }
+
+  // Follow whatever sequence the editor opens in Premiere (except the ones we just made).
+  var followTimer = null;
+  function startFollowing() {
+    if (followTimer) return;
+    followTimer = setInterval(function () {
+      if (document.hidden || state.busy || state.setup.busy || ui.tab !== 'cut') return;
+      callHost('AC_getActiveSequenceId').then(function (res) {
+        if (!res.id || (state.seq && res.id === state.seq.id) || state.created[res.id]) return;
+        return loadSequence(true).then(function () {
+          if (state.seq && state.seq.id === res.id) toast('Now on “' + res.name + '”');
+        });
+      }).catch(function () { /* Premiere busy: try again next tick */ });
+    }, 1500);
+  }
+
   // ---------------------------------------------------------------- UI helpers
 
   function setBusy(busy) {
@@ -1229,7 +1382,54 @@
 
   // ---------------------------------------------------------------- wiring
 
+  // Cards lean a few degrees toward the pointer, with a highlight that follows it.
+  function bindTilt() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var frame = null, target = null, ev = null;
+    document.addEventListener('mousemove', function (e) {
+      ev = e;
+      if (frame) return;
+      frame = requestAnimationFrame(function () {
+        frame = null;
+        var card = ev.target.closest ? ev.target.closest('.sticker') : null;
+        // Only tilt while hovering the card's own surface, not while dragging a slider.
+        if (ev.buttons) card = null;
+        if (target && target !== card) {
+          target.classList.remove('tilting');
+          target.style.setProperty('--rx', '0deg');
+          target.style.setProperty('--ry', '0deg');
+        }
+        target = card;
+        if (!card) return;
+        var r = card.getBoundingClientRect();
+        var x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height;
+        card.classList.add('tilting');
+        card.style.setProperty('--ry', ((x - 0.5) * 4).toFixed(2) + 'deg');
+        card.style.setProperty('--rx', ((0.5 - y) * 3).toFixed(2) + 'deg');
+        card.style.setProperty('--mx', Math.round(x * 100) + '%');
+        card.style.setProperty('--my', Math.round(y * 100) + '%');
+      });
+    });
+    document.addEventListener('mouseleave', function () {
+      if (!target) return;
+      target.classList.remove('tilting');
+      target.style.setProperty('--rx', '0deg');
+      target.style.setProperty('--ry', '0deg');
+      target = null;
+    });
+  }
+
   function bind() {
+    document.querySelectorAll('.fold-head').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var card = h.parentNode, folded = !card.classList.contains('collapsed');
+        card.classList.toggle('collapsed', folded);
+        h.setAttribute('aria-expanded', String(!folded));
+      });
+    });
+    bindTilt();
+    $('lastRunShow').addEventListener('click', showLastRun);
+    $('lastRunUndo').addEventListener('click', undoLastRun);
     $('tabSetup').addEventListener('click', function () { showTab('setup'); });
     $('tabCut').addEventListener('click', function () { showTab('cut'); });
     $('goSetup').addEventListener('click', function () { showTab('setup'); });
@@ -1241,7 +1441,7 @@
     $('toneBtn').addEventListener('click', function () {
       ui.tone = ui.tone === 'mean' ? 'nice' : 'mean';
       saveUi(); applyTone();
-      say(ui.tone === 'mean' ? 'Mean mode. Buckle up, buttercup.' : 'Nice mode on. I’ll behave. 🧃');
+      say(ui.tone === 'mean' ? 'Mean mode. Buckle up, buttercup. 😈' : 'Nice mode on. I’ll behave. 😇');
     });
     if (IN_PREMIERE) {
       try { window.__adobe_cep__.addEventListener('com.adobe.csxs.events.ThemeColorChanged', applyTheme); } catch (e) { /* ignore */ }
@@ -1251,7 +1451,7 @@
     $('mascot').addEventListener('click', function () {
       if (state.busy || state.setup.busy) return;
       setMood('poke');
-      say(ui.tone === 'mean' ? ['Oi. Hands off the beer.', 'Poke me again and I’m cutting to the wide.', 'I’m working. Mostly.'][Math.floor(Math.random() * 3)] : 'Hi there! 👋');
+      say(ui.tone === 'mean' ? ['Oi. Personal space.', 'Poke me again and I’m cutting to the wide.', 'I’m working. Mostly.'][Math.floor(Math.random() * 3)] : 'Hi there! 👋');
       setTimeout(function () { if (!state.busy) setMood('idle'); }, 700);
     });
 
@@ -1268,12 +1468,14 @@
       var free = seq.audioTracks.filter(function (tr) { return used.indexOf(tr.index) < 0; })[0] || seq.audioTracks[0];
       state.speakers.push({ name: 'Speaker ' + (state.speakers.length + 1), audio: free.index, video: seq.videoTracks[0].index, critter: state.speakers.length });
       renderSpeakers();
+      rememberMapping();
       mappingChanged();
     });
 
     $('wideCam').addEventListener('change', function () {
       state.wideCam = Number($('wideCam').value);
       $('autoTag').hidden = true;
+      rememberMapping();
       mappingChanged();
     });
 
@@ -1372,11 +1574,14 @@
     AC_getAudioClips: function (json) {
       return { ok: true, tracks: JSON.parse(json).map(function (i) { return { index: i, clips: [{}, {}, {}, {}] }; }) };
     },
-    AC_applyEdit: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', saved: true, originalUntouched: true }; },
+    AC_applyEdit: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut', saved: true, originalUntouched: true }; },
     AC_applyMulticam: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', sequenceId: 'demo', projectPath: '/demo.prproj', count: 281, razors: 280, pieces: { ASWITCH_1_0: { angle: 1, name: 'EP 142' } } }; },
     AC_closeProject: function () { return { ok: true, path: '/demo.prproj' }; },
     AC_reopenProject: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', restored: 0 }; },
-    AC_importXml: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
+    AC_importXml: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut' }; },
+    AC_getActiveSequenceId: function () { return { ok: true, id: 'demo', name: 'EP 142 Multicam' }; },
+    AC_openSequence: function () { return { ok: true, name: 'EP 142' }; },
+    AC_deleteSequence: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
     AC_setPlayhead: function () { return { ok: true }; },
     AC_getProjectSelection: function () { return { ok: true, files: [] }; },
     AC_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Chloe x Grace', misplaced: [] }; },
@@ -1463,6 +1668,7 @@
   var startTab = /setup|syncing|synced/.test(DEMO_STATE || '') ? 'setup' : (IN_PREMIERE ? ui.tab : 'cut');
   loadSequence(true).then(function () {
     showTab(startTab);
+    if (IN_PREMIERE) startFollowing();
     if (!state.seq && startTab === 'cut' && IN_PREMIERE) showTab('cut');
     if (DEMO_STATE === 'analyzing' || DEMO_STATE === 'result') return analyze();
     if (DEMO_STATE === 'done') return analyze().then(apply);

@@ -1,5 +1,5 @@
 /*
- * Arrow Switch — what the beer-drinking microphone says.
+ * Arrow Switch — what the microphone says.
  *
  * Two tones: "mean" (default, roasts you a bit) and "nice" (for when a client is watching).
  * Each key has a few lines; one is picked at random so it doesn't get stale.
@@ -18,7 +18,7 @@
       hello: [
         'Open a sequence. I can’t cut thin air, genius.',
         'Nothing open. Bold strategy for an editor.',
-        'I’m a microphone with a beer. Give me a sequence and I’ll do your job.'
+        'I’m a talking microphone. Give me a sequence and I’ll do your job.'
       ],
       matched: [
         'Matched mics to cameras. Check my work, I’ve had a few.',
@@ -47,7 +47,7 @@
       ],
       fastCutting: ['Rebuilding {cuts} cuts the fast way. Blink and you’ll miss it.'],
       done: [
-        'Done in {secs} s. It’s in “{name}”. Original untouched, unlike my pint.',
+        'Done in {secs} s. It’s in “{name}”. Original untouched, unlike your deadline.',
         'Done in {secs} s: “{name}”. Go take the credit, I won’t tell.'
       ],
       fastDone: ['Rebuilt “{name}” in {secs} s. Real cuts, no hidden clips. Absolute cinema.'],

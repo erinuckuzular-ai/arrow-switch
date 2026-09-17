@@ -10,6 +10,8 @@ mkdir -p "$WORK/stage"
 cp -R "$ROOT/scripts/harness/CSXS" "$ROOT/scripts/harness/.debug" "$WORK/stage/"
 # The real panel, loaded hidden, so tests exercise exactly what users run.
 rsync -a --exclude '.DS_Store' --exclude 'CSXS' --exclude '.debug' "$ROOT/extension/" "$WORK/stage/panel/"
+# The panel looks for ffmpeg next to the extension root, like a real install.
+cp -R "$ROOT/extension/bin" "$WORK/stage/bin"
 "$ROOT/.cache/ZXPSignCmd" -sign "$WORK/stage" "$WORK/h.zxp" "$ROOT/certs/arrow-switch.p12" "$(cat "$ROOT/certs/password.txt")" >/dev/null
 rm -rf "$DEST"; mkdir -p "$DEST"; unzip -q "$WORK/h.zxp" -d "$DEST"
 echo "Harness installed"
