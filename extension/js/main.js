@@ -9,12 +9,12 @@
   var Engine = window.AutoCutEngine;
   var Audio = window.AutoCutAudio;
   var IN_PREMIERE = !!window.__adobe_cep__;
-  var WINDOW_SEC = 0.1;
+  var WINDOW_SEC = Engine.DEFAULTS.windowSec;
   var STORE_KEY = 'arrow-autocut-settings';
   var DEMO_STATE = IN_PREMIERE ? null : (location.search.match(/state=(\w+)/) || [])[1];
 
-  var CHANNEL_COLORS = ['#4cc9f0', '#ff8fab', '#52d69a', '#ffc93c', '#9b5de5', '#ff9f43'];
-  var WIDE_COLOR = '#d8d2c4';
+  var CHANNEL_COLORS = ['#86c9ff', '#ff9ec9', '#7fdcb3', '#ffd772', '#b49cff', '#ffad85'];
+  var WIDE_COLOR = '#ddd3ea';
 
   // Hand-drawn critters, one per speaker. Tap a critter to swap it.
   var CRITTERS = [
@@ -30,18 +30,21 @@
     var c = CRITTERS[index % CRITTERS.length];
     return '<svg class="critter" viewBox="-4 -6 72 72" aria-hidden="true">' +
       '<g class="critter-body" style="fill:' + color + '">' + c.body + '</g>' +
+      // Clay shading: a soft shadow on the lower right, a highlight on the upper left.
+      '<ellipse class="shade" cx="42" cy="50" rx="14" ry="8"/><ellipse class="gloss" cx="20" cy="16" rx="7" ry="4" transform="rotate(-30 20 16)"/>' +
       '<g class="critter-face"><circle class="eye" cx="24" cy="30" r="7"/><circle class="eye" cx="40" cy="30" r="7"/>' +
       '<circle class="pupil" cx="25.5" cy="31.5" r="3"/><circle class="pupil" cx="41.5" cy="31.5" r="3"/>' +
       '<path class="smile" d="M26 44 Q32 50 38 44"/><ellipse class="yap" cx="32" cy="46" rx="4" ry="5"/></g></svg>';
   }
 
   var VIBES = {
-    chill:    { sensitivityDb: 12, minShotSec: 4,   maxShotSec: 40, wideShotSec: 4, leadInSec: 0.3 },
-    balanced: { sensitivityDb: 10, minShotSec: 2.5, maxShotSec: 25, wideShotSec: 3, leadInSec: 0.2 },
-    hype:     { sensitivityDb: 9,  minShotSec: 1.2, maxShotSec: 12, wideShotSec: 2, leadInSec: 0.1 }
+    chill:    { sensitivityDb: 12, minShotSec: 4,   maxShotSec: 40, wideShotSec: 4, leadInSec: 0.3, minTalkSec: 1.6 },
+    balanced: { sensitivityDb: 10, minShotSec: 2.5, maxShotSec: 25, wideShotSec: 3, leadInSec: 0.2, minTalkSec: 1.2 },
+    hype:     { sensitivityDb: 9,  minShotSec: 1.2, maxShotSec: 12, wideShotSec: 2, leadInSec: 0.1, minTalkSec: 0.7 }
   };
   var SLIDERS = {
     sensitivityDb: function (v) { return v + ' dB'; },
+    minTalkSec: function (v) { return Number(v).toFixed(1) + ' s'; },
     minShotSec: function (v) { return Number(v).toFixed(1) + ' s'; },
     maxShotSec: function (v) { return Number(v) === 0 ? 'off' : v + ' s'; },
     wideShotSec: function (v) { return Number(v).toFixed(1) + ' s'; },
@@ -57,7 +60,10 @@
     vibe: 'balanced',
     settings: Object.assign({ overlapToWide: true, deleteUnused: false }, VIBES.balanced),
     levels: {},          // audio track index -> Float32Array
+    speech: null,        // last detectSpeech() result, for the lanes and warnings
     segments: null,
+    notes: [],           // from audio analysis (split stereo files etc.)
+    job: null,           // running analysis, cancellable
     busy: false
   };
 
@@ -107,6 +113,9 @@
       if (changed) {
         state.levels = {};
         state.segments = null;
+        state.speech = null;
+        state.notes = [];
+        state.listenNote = '';
         autoMatch(seq);
         say('I matched mics to cameras. Fix any names, pick how cutty, then hit LISTEN!');
       }
@@ -265,6 +274,7 @@
 
     var dur = state.seq.durationSec;
     drawPreview(state.segments, dur);
+    renderWarnings();
     $('rulerMid').textContent = timecode(dur / 2);
     $('rulerEnd').textContent = timecode(dur);
 
@@ -284,50 +294,143 @@
     var cuts = Math.max(0, state.segments.length - 1);
     var avg = state.segments.length ? dur / state.segments.length : 0;
     $('programMeta').textContent = cuts + ' cuts!';
-    if (!state.busy) say(cuts + ' cuts, about ' + avg.toFixed(1) + ' s a shot. Like it? Smash CUT IT! (Your original sequence stays safe.)');
+    if (!state.busy) say((state.listenNote || '') + cuts + ' cuts, about ' + avg.toFixed(1) + ' s a shot. Click the strip to check a moment in Premiere, then smash CUT IT!');
   }
 
+  // Top: the cut (one colour per camera). Below: one thin lane per speaker showing
+  // when AutoCut heard them talking, so a wrong cut is easy to spot and explain.
+  var LANE_H = 6, LANE_GAP = 2;
   function drawPreview(segments, duration) {
     var canvas = $('preview');
+    var lanes = state.speech ? state.speech.talking.length : 0;
+    var cssH = 34 + lanes * (LANE_H + LANE_GAP) + (lanes ? 4 : 0);
+    canvas.style.height = cssH + 'px';
     var ratio = window.devicePixelRatio || 1;
     canvas.width = canvas.clientWidth * ratio;
-    canvas.height = canvas.clientHeight * ratio;
+    canvas.height = cssH * ratio;
     var ctx = canvas.getContext('2d');
-    var w = canvas.width, h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    var w = canvas.clientWidth, cutH = 34;
+    ctx.clearRect(0, 0, w, cssH);
     segments.forEach(function (s) {
-      var x = Math.round((s.start / duration) * w);
-      var x2 = Math.round((s.end / duration) * w);
+      var x = (s.start / duration) * w;
+      var x2 = (s.end / duration) * w;
       ctx.fillStyle = camColor(s.cam);
-      ctx.fillRect(x, 0, Math.max(1, x2 - x), h);
+      ctx.fillRect(Math.floor(x), 0, Math.max(1, Math.ceil(x2) - Math.floor(x)), cutH);
     });
     // Cut marks
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(59,42,85,0.3)';
     segments.forEach(function (s, i) {
-      if (i) ctx.fillRect(Math.round((s.start / duration) * w), 0, 1, h);
+      if (i) ctx.fillRect(Math.round((s.start / duration) * w), 0, 1, cutH);
+    });
+    if (!lanes) return;
+    ctx.fillStyle = 'rgba(143,113,242,0.35)';
+    ctx.fillRect(0, cutH, w, 2);
+    state.speech.talking.forEach(function (mask, li) {
+      var y = cutH + 4 + li * (LANE_H + LANE_GAP);
+      ctx.fillStyle = 'rgba(143,113,242,0.12)';
+      ctx.fillRect(0, y, w, LANE_H);
+      ctx.fillStyle = channelColor(li);
+      // One pass per pixel column: draw a column if the speaker talks anywhere in it.
+      var perPx = mask.length / w;
+      for (var px = 0; px < w; px++) {
+        var a = Math.floor(px * perPx), b = Math.max(a + 1, Math.floor((px + 1) * perPx));
+        for (var i = a; i < b && i < mask.length; i++) {
+          if (mask[i]) { ctx.fillRect(px, y, 1, LANE_H); break; }
+        }
+      }
     });
   }
 
-  function renderMeters(tracks) {
-    $('meters').innerHTML = tracks.map(function (t) {
-      var idx = -1;
-      state.speakers.forEach(function (sp, i) { if (idx < 0 && sp.audio === t.index) idx = i; });
-      var name = idx >= 0 ? state.speakers[idx].name : 'A' + (t.index + 1);
-      var who = Math.max(0, idx);
-      return '<div class="meter talking" id="meterRow-' + t.index + '" style="--ch:' + channelColor(who) + '">' +
-        critterSvg(idx >= 0 ? state.speakers[idx].critter : 0, channelColor(who)) +
-        '<span>' + escapeHtml(name) + '</span>' +
-        '<span class="track"><span class="fill" id="meter-' + t.index + '"></span></span>' +
-        '<b id="meterPct-' + t.index + '">0%</b></div>';
-    }).join('');
+  function segmentAt(sec) {
+    var segs = state.segments || [];
+    for (var i = 0; i < segs.length; i++) if (sec < segs[i].end) return segs[i];
+    return segs[segs.length - 1];
+  }
+
+  function bindPreview() {
+    var canvas = $('preview'), tip = $('previewTip');
+    function secAt(e) {
+      var rect = canvas.getBoundingClientRect();
+      var x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      return { sec: (x / rect.width) * state.seq.durationSec, x: x, w: rect.width };
+    }
+    canvas.addEventListener('mousemove', function (e) {
+      if (!state.segments) return;
+      var p = secAt(e);
+      var seg = segmentAt(p.sec);
+      tip.textContent = timecode(p.sec) + ' · ' + (seg ? camLabel(seg.cam) : '');
+      tip.hidden = false;
+      tip.style.left = Math.max(0, Math.min(p.w - tip.offsetWidth, p.x - tip.offsetWidth / 2)) + 'px';
+    });
+    canvas.addEventListener('mouseleave', function () { tip.hidden = true; });
+    canvas.addEventListener('click', function (e) {
+      if (!state.segments) return;
+      var sec = secAt(e).sec;
+      callHost('AC_setPlayhead', sec).catch(function (err) { setStatus(err.message, 'error'); });
+    });
+  }
+
+  // Things that usually mean the mapping is wrong, said plainly.
+  function renderWarnings() {
+    var items = [];
+    var sp = state.speech;
+    if (sp) {
+      var dur = state.seq.durationSec;
+      sp.stats.forEach(function (st, i) {
+        var who = state.speakers[i];
+        if (!who) return;
+        if (st.talkSec < Math.min(20, dur * 0.01)) {
+          items.push('I barely heard <b>' + escapeHtml(who.name) + '</b> (A' + (who.audio + 1) + '). Right mic track?');
+        }
+      });
+      sp.similar.forEach(function (pair) {
+        var a = state.speakers[pair[0]], b = state.speakers[pair[1]];
+        if (a && b && a.audio !== b.audio) {
+          items.push('<b>' + escapeHtml(a.name) + '</b> and <b>' + escapeHtml(b.name) + '</b> sound identical, so I can’t tell them apart. Use each person’s own mic.');
+        }
+      });
+      var dup = {};
+      state.speakers.forEach(function (s) {
+        if (dup[s.audio] !== undefined) items.push('<b>' + escapeHtml(state.speakers[dup[s.audio]].name) + '</b> and <b>' + escapeHtml(s.name) + '</b> share mic A' + (s.audio + 1) + '.');
+        dup[s.audio] = state.speakers.indexOf(s);
+      });
+    }
+    state.notes.forEach(function (n) {
+      var tracks = n.tracks.map(function (t) { return 'A' + (t + 1); }).join(' + ');
+      if (n.type === 'splitChannels') items.push('<i>' + escapeHtml(n.file) + '</i> is on ' + tracks + ', so each track hears its own channel.');
+      if (n.type === 'sharedMono') items.push('<i>' + escapeHtml(n.file) + '</i> is on ' + tracks + ' but has ' + (n.channels || 'too few') + ' channel(s), so those mics sound the same.');
+    });
+    $('warnings').innerHTML = items.map(function (h) { return '<li>' + h + '</li>'; }).join('');
+    $('warnings').hidden = !items.length;
+  }
+
+  function renderMeters() {
+    $('meters').innerHTML =
+      '<div class="meter-crew">' + state.speakers.map(function (sp, i) {
+        return '<span class="talking" style="--ch:' + channelColor(i) + '" title="' + escapeHtml(sp.name) + '">' + critterSvg(sp.critter, channelColor(i)) + '</span>';
+      }).join('') + '</div>' +
+      '<div class="meter" style="--ch:' + channelColor(0) + '">' +
+        '<span class="track"><span class="fill" id="meterFill"></span></span>' +
+        '<b id="meterPct">0%</b></div>' +
+      '<p class="meter-info" id="meterInfo">Warming up…</p>' +
+      '<button id="cancel" class="link">stop listening</button>';
+    $('cancel').addEventListener('click', function () {
+      if (state.job) state.job.cancel();
+    });
     $('meters').hidden = false;
   }
 
-  function setMeter(trackIndex, pct) {
-    var fill = $('meter-' + trackIndex), label = $('meterPct-' + trackIndex);
-    if (fill) fill.style.width = Math.round(pct * 100) + '%';
-    if (label) label.textContent = Math.round(pct * 100) + '%';
-    if (pct >= 1 && $('meterRow-' + trackIndex)) $('meterRow-' + trackIndex).classList.remove('talking');
+  function minutes(sec) { return sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min'; }
+
+  function setMeter(done, total, startedAt) {
+    var pct = total ? done / total : 0;
+    $('meterFill').style.width = Math.round(pct * 100) + '%';
+    $('meterPct').textContent = Math.round(pct * 100) + '%';
+    var elapsed = (Date.now() - startedAt) / 1000;
+    var info = minutes(done) + ' of ' + minutes(total) + ' of audio';
+    if (pct > 0.05 && pct < 1 && elapsed > 1) info += ' · about ' + minutes(elapsed * (1 - pct) / pct) + ' left';
+    $('meterInfo').textContent = info;
   }
 
   // ---------------------------------------------------------------- analysis
@@ -345,7 +448,7 @@
     if (!state.seq || !haveLevelsForAll()) return;
     var opts = Object.assign({ windowSec: WINDOW_SEC }, state.settings);
     var levels = state.speakers.map(function (sp) { return state.levels[sp.audio]; });
-    var speech = Engine.detectSpeech(levels, opts);
+    var speech = state.speech = Engine.detectSpeech(levels, opts);
     state.segments = Engine.buildEdit(speech.active, Object.assign({}, opts, {
       speakerCams: state.speakers.map(function (sp) { return sp.video; }),
       wideCam: state.wideCam >= 0 ? state.wideCam : null
@@ -377,15 +480,26 @@
       })
       .then(function (res) {
         var totalWindows = Math.ceil(state.seq.durationSec / WINDOW_SEC);
-        renderMeters(res.tracks);
+        var startedAt = Date.now();
+        renderMeters();
         say('Shhh… I’m listening to everyone’s mic.', 'listen');
-        return Promise.all(res.tracks.map(function (track) {
-          var onDone = function (done, total) { setMeter(track.index, done / total); };
-          var job = IN_PREMIERE
-            ? Audio.trackLevels(ffmpeg, track, totalWindows, WINDOW_SEC, onDone)
-            : Demo.levels(track, totalWindows, onDone);
-          return job.then(function (lv) { state.levels[track.index] = lv; });
-        }));
+        var onProgress = function (done, total) { setMeter(done, total, startedAt); };
+        var run;
+        if (IN_PREMIERE) {
+          state.job = Audio.createJob();
+          run = Audio.analyzeTracks(ffmpeg, res.tracks, totalWindows, WINDOW_SEC, { job: state.job, onProgress: onProgress });
+        } else {
+          state.job = { cancel: function () { this.cancelled = true; } };
+          run = Demo.analyze(res.tracks, totalWindows, onProgress, state.job);
+        }
+        return run.then(function (out) {
+          res.tracks.forEach(function (t) { state.levels[t.index] = out.levels[t.index]; });
+          state.notes = out.notes || [];
+          var secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+          state.listenNote = out.decodedSec < 1
+            ? 'I remembered this audio from last time. '
+            : 'Listened to ' + minutes(out.decodedSec + out.cachedSec) + ' of audio in ' + secs + ' s. ';
+        });
       })
       .then(function () {
         $('meters').hidden = true;
@@ -396,9 +510,10 @@
         $('meters').hidden = true;
         state.segments = null;
         renderProgram();
-        setStatus(err.message, 'error');
+        if (err.cancelled) say('Okay, I stopped. Hit LISTEN! when you’re ready.');
+        else setStatus(err.message, 'error');
       })
-      .then(function () { setBusy(false); });
+      .then(function () { state.job = null; setBusy(false); });
   }
 
   function apply() {
@@ -421,10 +536,12 @@
     };
     say('Snip snip! Making ' + (frames.length - 1) + ' cuts. Premiere might freeze for a sec…', 'cut');
     // Let the status paint before Premiere blocks the UI thread.
+    var cutStarted = Date.now();
     setTimeout(function () {
       callHost('AC_applyEdit', JSON.stringify(payload))
         .then(function (res) {
-          say('Done! Look for “' + res.name + '” in your project. Your original is untouched.', 'done');
+          var secs = ((Date.now() - cutStarted) / 1000).toFixed(1);
+          say('Done in ' + secs + ' s! Look for “' + res.name + '” in your project. Your original is untouched.', 'done');
         })
         .catch(function (err) { setStatus(err.message, 'error'); })
         .then(function () { setBusy(false); });
@@ -465,7 +582,8 @@
     $('load').addEventListener('click', function () { loadSequence(false); });
     $('refresh').addEventListener('click', function () { loadSequence(false); });
     $('analyze').addEventListener('click', analyze);
-    $('reanalyze').addEventListener('click', function () { state.levels = {}; state.segments = null; analyze(); });
+    $('reanalyze').addEventListener('click', function () { state.levels = {}; state.segments = null; state.speech = null; analyze(); });
+    bindPreview();
     $('apply').addEventListener('click', apply);
 
     $('addSpeaker').addEventListener('click', function () {
@@ -541,11 +659,26 @@
     AC_applyEdit: function () {
       return { ok: true, name: 'EP 142 Multicam – AutoCut' };
     },
+    analyze: function (tracks, n, onProgress, job) {
+      var total = 3312 * tracks.length, done = 0;
+      var parts = tracks.map(function (t) {
+        return Demo.levels(t, n, function (step, steps) {
+          done += 3312 / steps;
+          onProgress(done, total);
+        }, job);
+      });
+      return Promise.all(parts).then(function (all) {
+        var levels = {};
+        tracks.forEach(function (t, i) { levels[t.index] = all[i]; });
+        return { levels: levels, notes: [], decodedSec: total, cachedSec: 0 };
+      });
+    },
     // Fake conversation: alternating turns of random length with occasional cross-talk.
-    levels: function (track, n, onDone) {
-      return new Promise(function (resolve) {
+    levels: function (track, n, onDone, job) {
+      return new Promise(function (resolve, reject) {
         var steps = 4, step = 0;
         var tick = setInterval(function () {
+          if (job && job.cancelled) { clearInterval(tick); var e = new Error('cancelled'); e.cancelled = true; return reject(e); }
           step++;
           onDone(step, steps);
           // In the "analyzing" screenshot state, stop part-way.
@@ -557,8 +690,9 @@
           var out = new Float32Array(n);
           var i = 0, speaker = 0;
           while (i < n) {
-            var len = Math.floor(40 + rnd() * 400);
-            var overlap = rnd() < 0.15 ? Math.floor(20 + rnd() * 30) : 0;
+            var perSec = 1 / WINDOW_SEC;
+            var len = Math.floor((4 + rnd() * 40) * perSec);
+            var overlap = rnd() < 0.15 ? Math.floor((2 + rnd() * 3) * perSec) : 0;
             for (var k = i; k < Math.min(n, i + len); k++) {
               var talking = speaker === track.index || k >= i + len - overlap;
               out[k] = talking ? -22 + rnd() * 6 : -58 + rnd() * 4;

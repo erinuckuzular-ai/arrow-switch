@@ -41,6 +41,17 @@ test/                 node --test suites
 build.sh              tests -> universal ffmpeg -> signed ZXP -> .pkg -> .dmg
 ```
 
+### Accuracy benchmark
+
+```bash
+node test/bench/accuracy.js
+```
+
+Generates synthetic podcasts with known answers (mic bleed, a quiet guest, rumble,
+backchannels, cross-talk, a two-channel recorder) and scores the engine: time on the
+right camera, wrong shots, missed turns, cut timing and listen speed. Pass a folder
+holding another `engine.js` + `audio.js` to compare versions.
+
 ### Build the DMG
 
 ```bash

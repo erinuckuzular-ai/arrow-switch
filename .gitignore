@@ -3,3 +3,4 @@ dist/
 .cache/
 certs/
 .DS_Store
+extension/bin/
