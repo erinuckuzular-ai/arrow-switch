@@ -1,14 +1,18 @@
-ARROW AUTOCUT — automatic multicam podcast editing for Premiere Pro
+ARROW SWITCH — automatic multicam podcast editing for Premiere Pro
 
 INSTALL (Mac)
   1. Quit Premiere Pro.
-  2. Double-click "Install Arrow AutoCut.pkg" and follow the steps.
-  3. Open Premiere Pro > Window > Extensions > Arrow AutoCut.
+  2. Double-click "Install Arrow Switch.pkg" and follow the steps.
+     If macOS says it "cannot verify" the installer is free of malware: click Done,
+     open System Settings > Privacy & Security, scroll down and click "Open Anyway"
+     next to Install Arrow Switch.pkg. (This appears because the installer isn't
+     signed with a paid Apple Developer ID yet, not because anything is wrong.)
+  3. Open Premiere Pro > Window > Extensions > Arrow Switch.
 
 INSTALL (Windows)
-  Use "Arrow AutoCut.zxp" with a ZXP installer such as
+  Use "Arrow Switch.zxp" with a ZXP installer such as
   aescripts ZXP Installer (https://aescripts.com/learn/zxp-installer/).
-  Note: on Windows, AutoCut needs ffmpeg.exe placed in the extension's bin folder.
+  Note: on Windows, Arrow Switch needs ffmpeg.exe placed in the extension's bin folder.
 
 SET UP YOUR SEQUENCE
   - Each camera angle on its own video track, all synced and stacked
@@ -17,11 +21,16 @@ SET UP YOUR SEQUENCE
   - Use the raw audio files on those tracks, not nested/multicam clips.
 
 USE IT
-  1. Open the sequence, then AutoCut matches mics to cameras automatically.
-  2. Pick a vibe: Chill, Balanced or Hype.
-  3. Click "Listen to the podcast", check the preview, click "Build my edit".
-  AutoCut makes a copy called "<sequence> – AutoCut". Your original is never changed.
+  1. Open the sequence, then Arrow Switch matches mics to cameras automatically.
+  2. Pick how cutty: Sleepy, Chatty or Chaotic.
+  3. Click LISTEN!, check the preview (click it to jump there in Premiere), then CUT IT!
+  Arrow Switch saves your project, then makes a copy called "<sequence> – Arrow Switch".
+  Your original is never changed.
   Unused angles are disabled, not deleted, so you can re-enable any shot by hand.
 
 UNINSTALL
-  Double-click "Uninstall Arrow AutoCut.command".
+  Double-click "Uninstall Arrow Switch.command".
+
+LICENSES
+  Arrow Switch includes ffmpeg, licensed under the GNU GPL v3. See the Licenses folder
+  for the license text and where to get ffmpeg's source code.

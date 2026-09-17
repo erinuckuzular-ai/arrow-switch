@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Builds dist/Arrow-AutoCut-<version>.dmg containing:
-#   Install Arrow AutoCut.pkg      (macOS installer)
-#   Arrow AutoCut.zxp              (for ZXP installers / Windows)
-#   Uninstall Arrow AutoCut.command
+# Builds dist/Arrow-Switch-<version>.dmg containing:
+#   Install Arrow Switch.pkg      (macOS installer)
+#   Arrow Switch.zxp              (for ZXP installers / Windows)
+#   Uninstall Arrow Switch.command
 #   Read Me.txt
 #
 # Optional environment variables:
@@ -17,8 +17,8 @@ set -euo pipefail
 export COPYFILE_DISABLE=1   # keep macOS "._" metadata files out of the package
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-NAME="Arrow AutoCut"
-BUNDLE_ID="com.arrow.autocut"
+NAME="Arrow Switch"
+BUNDLE_ID="com.arrow.switch"
 VERSION="$(sed -n 's/.*ExtensionBundleVersion="\([^"]*\)".*/\1/p' "$ROOT/extension/CSXS/manifest.xml")"
 BUILD="$ROOT/build"
 DIST="$ROOT/dist"
@@ -50,12 +50,22 @@ if otool -L "$CACHE/ffmpeg" | grep -E '^\s' | grep -qvE '/usr/lib/|/System/Libra
   exit 1
 fi
 
+# ------------------------------------------------------------------ ffmpeg source (GPL)
+# ffmpeg is GPLv3: every release must ship its corresponding source. These land in dist/
+# next to the DMG and get attached to the GitHub release (see licenses/FFMPEG-NOTICE.txt).
+step "Collecting ffmpeg source for the release"
+FFMPEG_VERSION="9.0.1"
+[ -f "$CACHE/ffmpeg-$FFMPEG_VERSION.tar.xz" ] || curl -fsSL "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" -o "$CACHE/ffmpeg-$FFMPEG_VERSION.tar.xz"
+[ -f "$CACHE/ffmpeg-build-script.tar.gz" ] || curl -fsSL "https://git.martin-riedl.de/ffmpeg/build-script/archive/main.tar.gz" -o "$CACHE/ffmpeg-build-script.tar.gz"
+cp "$CACHE/ffmpeg-$FFMPEG_VERSION.tar.xz" "$CACHE/ffmpeg-build-script.tar.gz" "$DIST/"
+
 # ------------------------------------------------------------------ stage extension
 step "Staging extension $VERSION"
 STAGE="$BUILD/stage/$BUNDLE_ID"
 mkdir -p "$STAGE"
 rsync -a --exclude '.debug' --exclude '.DS_Store' --exclude 'bin/*' "$ROOT/extension/" "$STAGE/"
-mkdir -p "$STAGE/bin"
+mkdir -p "$STAGE/bin" "$STAGE/licenses"
+cp "$ROOT/licenses/"* "$STAGE/licenses/"
 cp "$CACHE/ffmpeg" "$STAGE/bin/ffmpeg"
 if [ -n "${APP_SIGN_ID:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$APP_SIGN_ID" "$STAGE/bin/ffmpeg"
@@ -75,7 +85,7 @@ if [ "${SKIP_ZXP_SIGN:-0}" != "1" ]; then
     chmod +x "$SIGNER"
     xattr -d com.apple.quarantine "$SIGNER" 2>/dev/null || true
   fi
-  CERT="$ROOT/certs/autocut.p12"
+  CERT="$ROOT/certs/arrow-switch.p12"
   PASS_FILE="$ROOT/certs/password.txt"
   if [ ! -f "$CERT" ]; then
     mkdir -p "$ROOT/certs"
@@ -143,8 +153,9 @@ cp "$PKG" "$DMG_SRC/"
 [ -f "$ZXP" ] && cp "$ZXP" "$DMG_SRC/"
 cp "$ROOT/installer/uninstall.command" "$DMG_SRC/Uninstall $NAME.command"
 cp "$ROOT/installer/Read Me.txt" "$DMG_SRC/"
+mkdir -p "$DMG_SRC/Licenses" && cp "$ROOT/licenses/"* "$DMG_SRC/Licenses/"
 
-DMG="$DIST/Arrow-AutoCut-$VERSION.dmg"
+DMG="$DIST/Arrow-Switch-$VERSION.dmg"
 rm -f "$DMG"
 hdiutil create -volname "$NAME" -srcfolder "$DMG_SRC" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
 

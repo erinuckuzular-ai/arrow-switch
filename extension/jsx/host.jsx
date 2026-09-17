@@ -1,5 +1,5 @@
 /*
- * Arrow AutoCut — Premiere Pro ExtendScript host.
+ * Arrow Switch — Premiere Pro ExtendScript host.
  * Every entry point returns a JSON string: { ok: true, ... } or { ok: false, error }.
  */
 

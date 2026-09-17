@@ -13,6 +13,6 @@ test('panel scripts attach to window inside a Node-enabled CEP panel', () => {
   for (const file of ['engine.js', 'audio.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'js', file), 'utf8'), context);
   }
-  assert.ok(window.AutoCutEngine && typeof window.AutoCutEngine.buildEdit === 'function', 'engine on window');
-  assert.ok(window.AutoCutAudio && typeof window.AutoCutAudio.findFfmpeg === 'function', 'audio on window');
+  assert.ok(window.ArrowSwitchEngine && typeof window.ArrowSwitchEngine.buildEdit === 'function', 'engine on window');
+  assert.ok(window.ArrowSwitchAudio && typeof window.ArrowSwitchAudio.findFfmpeg === 'function', 'audio on window');
 });

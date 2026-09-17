@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.arrow.autocut" ExtensionBundleVersion="1.1.0" ExtensionBundleName="Arrow AutoCut"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.arrow.switch" ExtensionBundleVersion="1.2.0" ExtensionBundleName="Arrow Switch"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.arrow.autocut.panel" Version="1.1.0" />
+    <Extension Id="com.arrow.switch.panel" Version="1.2.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -16,7 +16,7 @@
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.arrow.autocut.panel">
+    <Extension Id="com.arrow.switch.panel">
       <DispatchInfo>
         <Resources>
           <MainPath>./index.html</MainPath>
@@ -31,7 +31,7 @@
         </Lifecycle>
         <UI>
           <Type>Panel</Type>
-          <Menu>Arrow AutoCut</Menu>
+          <Menu>Arrow Switch</Menu>
           <Geometry>
             <Size><Height>720</Height><Width>380</Width></Size>
             <MinSize><Height>400</Height><Width>300</Width></MinSize>

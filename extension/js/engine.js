@@ -1,5 +1,5 @@
 /*
- * Arrow AutoCut — edit decision engine.
+ * Arrow Switch — edit decision engine.
  *
  * Pure functions, no Premiere or Node dependencies, so the logic can be
  * unit-tested outside of Premiere (see test/engine.test.js) and scored against
@@ -15,8 +15,8 @@
   var api = factory();
   // Premiere panels run with Node enabled, so `module` exists there too: set both.
   if (typeof module === 'object' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') window.AutoCutEngine = api;
-  else root.AutoCutEngine = api;
+  if (typeof window !== 'undefined') window.ArrowSwitchEngine = api;
+  else root.ArrowSwitchEngine = api;
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
