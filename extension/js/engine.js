@@ -21,6 +21,7 @@
   'use strict';
 
   var SILENT_DB = -120;
+  var OVERLAP_LO = 0.3;     // fingerprint 30-70% of the way between two speakers = both talking
 
   var DEFAULTS = {
     windowSec: 0.05,       // analysis resolution
@@ -148,75 +149,130 @@
     }
     setThresholds();
 
-    // 2. Learn from the unambiguous moments. When one mic clearly dominates we know who is
-    //    talking, so we can (a) re-estimate that person's real speaking level without bleed
-    //    and backchannels mixed in, and (b) measure how much of them leaks into every other mic.
-    var confident = [];
-    for (var pass = 0; pass < 2; pass++) {
-      confident = [];
-      for (var c = 0; c < S; c++) confident.push([]);
-      for (var w = 0; w < n; w++) {
-        var best = -1, bestRel = -Infinity, secondRel = -Infinity;
-        for (var k = 0; k < S; k++) {
-          if (sm[k][w] <= stats[k].threshold) continue;
-          var rel = sm[k][w] - stats[k].speech;
-          if (rel > bestRel) { secondRel = bestRel; bestRel = rel; best = k; }
-          else if (rel > secondRel) secondRel = rel;
-        }
-        if (best >= 0 && bestRel - secondRel >= 10 && bestRel > -12) confident[best].push(w);
+    // 2. Who is talking: the mic "fingerprint". While one person talks alone, the level
+    //    differences between the mics stay the same however loud they speak or how the mics
+    //    are gained, because they come from where that person sits relative to each mic.
+    //    Each speaker gets a fingerprint (a centroid of per-mic level differences), learned
+    //    from the clearest moments and refined k-means style. This keeps working when mics
+    //    hear each other almost as loud as their own person, which plain loudness can't.
+    var nearFloor = new Float32Array(S);
+    for (var nf = 0; nf < S; nf++) nearFloor[nf] = stats[nf].floor;
+    var sig = new Float32Array(n * S);        // per-window fingerprint, row-major
+    var strength = new Float32Array(n);       // best margin over any mic's threshold
+    for (var w = 0; w < n; w++) {
+      var mean = 0, best = -Infinity;
+      for (var k = 0; k < S; k++) {
+        var lv = Math.max(sm[k][w], nearFloor[k]);
+        sig[w * S + k] = lv;
+        mean += lv;
+        if (sm[k][w] - stats[k].threshold > best) best = sm[k][w] - stats[k].threshold;
       }
-      for (var r = 0; r < S; r++) {
-        if (confident[r].length < minConfident) continue;
-        var h = new Histogram();
-        for (var x = 0; x < confident[r].length; x++) h.add(sm[r][confident[r][x]]);
-        stats[r].speech = h.percentile(0.5, stats[r].speech);
-      }
-      setThresholds();
+      mean /= S;
+      for (var k2 = 0; k2 < S; k2++) sig[w * S + k2] -= mean;
+      strength[w] = best;
     }
 
-    // bleed[i][j]: typical level on mic j relative to mic i while i talks alone.
-    var bleed = [];
+    // Clear speech only for learning: well above the threshold on some mic.
+    var fit = [];
+    for (var fw = 0; fw < n; fw++) if (strength[fw] >= 6) fit.push(fw);
+    var stride = Math.max(1, Math.floor(fit.length / 40000));
+
+    var cent = [];
+    for (var ck = 0; ck < S; ck++) {
+      // Start from the moments where this speaker's own mic stands out most.
+      var hk = new Histogram(), cVec = new Float64Array(S), cnt0 = 0;
+      for (var fi = 0; fi < fit.length; fi += stride) hk.add(sig[fit[fi] * S + ck]);
+      var cut = hk.percentile(0.95, 0);
+      for (var fj = 0; fj < fit.length; fj += stride) {
+        var ww = fit[fj];
+        if (sig[ww * S + ck] < cut) continue;
+        for (var m = 0; m < S; m++) cVec[m] += sig[ww * S + m];
+        cnt0++;
+      }
+      if (cnt0) for (var m2 = 0; m2 < S; m2++) cVec[m2] /= cnt0;
+      else for (var m3 = 0; m3 < S; m3++) cVec[m3] = m3 === ck ? 10 : -10 / Math.max(1, S - 1);
+      cent.push(cVec);
+    }
+
+    function nearest(w, out) {
+      var b1 = -1, d1 = Infinity, b2 = -1, d2 = Infinity;
+      for (var c = 0; c < S; c++) {
+        var d = 0;
+        for (var m = 0; m < S; m++) { var e = sig[w * S + m] - cent[c][m]; d += e * e; }
+        if (d < d1) { b2 = b1; d2 = d1; b1 = c; d1 = d; }
+        else if (d < d2) { b2 = c; d2 = d; }
+      }
+      out[0] = b1; out[1] = b2;
+    }
+
+    // Position of window w along the line from speaker a's fingerprint to speaker b's
+    // (0 = pure a, 1 = pure b); talking over each other lands in between.
+    function between(w, a, b) {
+      var num = 0, den = 0;
+      for (var m = 0; m < S; m++) {
+        var seg = cent[b][m] - cent[a][m];
+        num += (sig[w * S + m] - cent[a][m]) * seg;
+        den += seg * seg;
+      }
+      return den > 0 ? num / den : 0.5;
+    }
+
+    var pair = [0, 0];
+    if (S > 1) {
+      for (var it = 0; it < 8; it++) {
+        var sums = [], counts = new Float64Array(S);
+        for (var z0 = 0; z0 < S; z0++) sums.push(new Float64Array(S));
+        for (var fk = 0; fk < fit.length; fk += stride) {
+          var wk = fit[fk];
+          nearest(wk, pair);
+          // Learn only from windows that clearly belong to one speaker.
+          if (pair[1] >= 0) {
+            var tt = between(wk, pair[0], pair[1]);
+            if (tt > OVERLAP_LO) continue;
+          }
+          for (var mz = 0; mz < S; mz++) sums[pair[0]][mz] += sig[wk * S + mz];
+          counts[pair[0]]++;
+        }
+        for (var cz = 0; cz < S; cz++) {
+          if (counts[cz] < 20) continue;
+          for (var mc = 0; mc < S; mc++) cent[cz][mc] = sums[cz][mc] / counts[cz];
+        }
+      }
+    }
+
+    // Fingerprints closer than this can't be told apart (same mic on two tracks).
+    var same = [];
+    for (var sa = 0; sa < S; sa++) {
+      same.push(new Uint8Array(S));
+      for (var sb = 0; sb < S; sb++) {
+        var dd = 0;
+        for (var md = 0; md < S; md++) { var ee = cent[sa][md] - cent[sb][md]; dd += ee * ee; }
+        if (sa !== sb && Math.sqrt(dd) < 2) same[sa][sb] = 1;
+      }
+    }
+
+    // What each mic hears of each speaker, relative to that speaker's own mic.
     for (var bi = 0; bi < S; bi++) {
-      bleed.push([]);
-      for (var bj = 0; bj < S; bj++) {
-        if (bi === bj || confident[bi].length < minConfident) { bleed[bi].push(null); continue; }
-        var hb = new Histogram();
-        for (var y = 0; y < confident[bi].length; y++) {
-          var wi = confident[bi][y];
-          hb.add(Math.max(HIST_MIN, Math.min(0, sm[bj][wi] - sm[bi][wi])));
-        }
-        bleed[bi].push(hb.percentile(0.5, null));
-      }
-      stats[bi].bleed = bleed[bi];
+      stats[bi].bleed = [];
+      for (var bj = 0; bj < S; bj++) stats[bi].bleed.push(bi === bj ? null : Math.round((cent[bi][bj] - cent[bi][bi]) * 10) / 10);
     }
 
-    // 3. Per-speaker talk masks: over threshold (with hysteresis), louder than the bleed the
-    //    other mics would put there, and within the overlap margin of whoever is loudest.
+    // 3. Per-speaker talk masks: someone is talking (a mic is over its threshold, with
+    //    hysteresis) and the fingerprint says who, or two people when it sits between theirs.
     var masks = [];
     for (var mm = 0; mm < S; mm++) masks.push(new Uint8Array(n));
-    var on = new Uint8Array(S);
-    var cand = new Uint8Array(S), relv = new Float32Array(S);
+    var voiced = false;
     for (var v = 0; v < n; v++) {
-      var top = -Infinity;
-      for (var a = 0; a < S; a++) {
-        cand[a] = 0;
-        var level = sm[a][v];
-        var thr = stats[a].threshold - (on[a] ? o.hysteresisDb : 0);
-        if (level <= thr) continue;
-        var predicted = -Infinity;
-        for (var b = 0; b < S; b++) {
-          if (b === a || bleed[b][a] === null || sm[b][v] <= stats[b].threshold) continue;
-          var pr = sm[b][v] + bleed[b][a];
-          if (pr > predicted) predicted = pr;
-        }
-        if (level < predicted + o.bleedMarginDb) continue;
-        cand[a] = 1;
-        relv[a] = level - stats[a].speech;
-        if (relv[a] > top) top = relv[a];
-      }
-      for (var d = 0; d < S; d++) {
-        on[d] = cand[d] && relv[d] >= top - o.overlapMarginDb ? 1 : 0;
-        masks[d][v] = on[d];
+      voiced = strength[v] > (voiced ? -o.hysteresisDb : 0);
+      if (!voiced) continue;
+      if (S === 1) { masks[0][v] = 1; continue; }
+      nearest(v, pair);
+      var who = [pair[0]];
+      var t2 = between(v, pair[0], pair[1]);
+      if (t2 > OVERLAP_LO && t2 < 1 - OVERLAP_LO) who.push(pair[1]);
+      for (var wi = 0; wi < who.length; wi++) {
+        masks[who[wi]][v] = 1;
+        for (var sx = 0; sx < S; sx++) if (same[who[wi]][sx]) masks[sx][v] = 1;
       }
     }
 
@@ -244,7 +300,7 @@
         for (var z = 0; z < n; z += step) {
           if (sm[p1][z] > stats[p1].threshold || sm[p2][z] > stats[p2].threshold) diff.add(-Math.abs(sm[p1][z] - sm[p2][z]));
         }
-        if (diff.count > 50 && diff.percentile(0.1, -99) > -1) similar.push([p1, p2]);
+        if ((diff.count > 50 && diff.percentile(0.1, -99) > -1) || same[p1][p2]) similar.push([p1, p2]);
       }
     }
 

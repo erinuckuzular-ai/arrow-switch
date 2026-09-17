@@ -201,7 +201,10 @@ function build(dir, scenario) {
   const rendered = scenario.mics.map((m, i) => renderMic(voices, m, n, 900 + i));
 
   const files = {};
-  scenario.mics.forEach((m, i) => { (files[m.file] = files[m.file] || []).push(rendered[i]); });
+  scenario.mics.forEach((m, i) => {
+    (files[m.file] = files[m.file] || []).push(rendered[i]);
+    if (m.stereoWith) files[m.file].push(renderMic(voices, m.stereoWith, n, 950 + i));
+  });
   Object.keys(files).forEach((f) => writeWav(path.join(dir, f), files[f], n));
 
   const tracks = scenario.mics.map((m, i) => ({
@@ -260,6 +263,58 @@ const SCENARIOS = {
       noiseDb: -58,
       rumbleDb: me === 2 ? -30 : undefined
     }))
+  },
+  // Two lavs close together with poor, lopsided separation: mic B hears A almost as
+  // loud as B. (A real-episode bug: one speaker hogged the screen.)
+  closeLavs: {
+    seed: 71, durationSec: 900, overlapRate: 0.35, crossTalkRate: 0.03, backchannelEverySec: 7, laughEverySec: 70,
+    speakers: [
+      { weight: 0.5, turnSec: [3, 40], voice: voice(170) },
+      { weight: 0.5, turnSec: [3, 40], voice: voice(210) }
+    ],
+    mics: [
+      { file: 'a.wav', sources: [{ voice: 0, gainDb: -4 }, { voice: 1, gainDb: -13, delayMs: 2 }], noiseDb: -60 },
+      { file: 'b.wav', sources: [{ voice: 1, gainDb: 0 }, { voice: 0, gainDb: -6, delayMs: 2 }], noiseDb: -56 }
+    ]
+  },
+  // Two people sharing a table with omni lavs: each mic is only 3-5 dB louder for its
+  // own person than for the other one, and the gains differ.
+  poorSeparation: {
+    seed: 113, durationSec: 900, overlapRate: 0.35, crossTalkRate: 0.03, backchannelEverySec: 7, laughEverySec: 70,
+    speakers: [
+      { weight: 0.5, turnSec: [3, 40], voice: voice(170) },
+      { weight: 0.5, turnSec: [3, 40], voice: voice(210) }
+    ],
+    mics: [
+      { file: 'a.wav', sources: [{ voice: 0, gainDb: -6 }, { voice: 1, gainDb: -11, delayMs: 2 }], noiseDb: -62 },
+      { file: 'b.wav', sources: [{ voice: 1, gainDb: 0 }, { voice: 0, gainDb: -3, delayMs: 2 }], noiseDb: -58 }
+    ]
+  },
+  // Speaker 2's track hears both people almost equally (a camera/room mic, or a
+  // two-person wireless receiver file mixed down on one track).
+  mixedTrack: {
+    seed: 83, durationSec: 900, overlapRate: 0.35, crossTalkRate: 0.03, backchannelEverySec: 7, laughEverySec: 70,
+    speakers: [
+      { weight: 0.5, turnSec: [3, 40], voice: voice(170) },
+      { weight: 0.5, turnSec: [3, 40], voice: voice(210) }
+    ],
+    mics: [
+      { file: 'a.wav', sources: [{ voice: 0, gainDb: -4 }, { voice: 1, gainDb: -16, delayMs: 2 }], noiseDb: -60 },
+      { file: 'b.wav', sources: [{ voice: 1, gainDb: 0 }, { voice: 0, gainDb: -3, delayMs: 2 }], noiseDb: -56 }
+    ]
+  },
+  // A stereo wireless receiver file (person 1 left, person 2 right) placed on A2 only,
+  // with person 1's separate backup lav on A1.
+  receiverOnOneTrack: {
+    seed: 97, durationSec: 900, overlapRate: 0.35, crossTalkRate: 0.03, backchannelEverySec: 7, laughEverySec: 70,
+    speakers: [
+      { weight: 0.5, turnSec: [3, 40], voice: voice(170) },
+      { weight: 0.5, turnSec: [3, 40], voice: voice(210) }
+    ],
+    mics: [
+      { file: 'lav1.wav', sources: [{ voice: 0, gainDb: -4 }, { voice: 1, gainDb: -18, delayMs: 2 }] },
+      { file: 'receiver.wav', sources: [{ voice: 0, gainDb: -2 }, { voice: 1, gainDb: -20, delayMs: 2 }], stereoWith: { sources: [{ voice: 1, gainDb: -1 }, { voice: 0, gainDb: -20, delayMs: 2 }] } }
+    ]
   },
   // A two-channel recorder: host on the left channel, guest on the right, one file
   // placed on A1 and A2. Only works if each track reads its own channel.
