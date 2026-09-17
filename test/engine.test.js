@@ -142,3 +142,22 @@ test('mics that hear each other almost as loud as their own person still split s
   const segs = E.buildEdit(active, { windowSec: W, speakerCams: [1, 2], wideCam: 0, leadInSec: 0, overlapToWide: false });
   assert.deepStrictEqual(segs.map((s) => s.cam), [1, 2, 1, 2, 1]);
 });
+
+test('never cuts to a camera that has no footage yet', () => {
+  // Chloe's camera starts 4.7 s late and Grace's stops at 20 s; the wide covers everything.
+  const segs = [{ cam: 1, start: 0, end: 10 }, { cam: 2, start: 10, end: 30 }];
+  const cover = { 0: [[0, 30]], 1: [[4.7, 30]], 2: [[0, 20]] };
+  assert.deepStrictEqual(E.avoidEmpty(segs, cover, [0, 1, 2]), [
+    { cam: 0, start: 0, end: 4.7 },
+    { cam: 1, start: 4.7, end: 10 },
+    { cam: 2, start: 10, end: 20 },
+    { cam: 0, start: 20, end: 30 }
+  ]);
+  assert.deepStrictEqual(E.avoidEmpty(segs, null, [0]), segs, 'no coverage info: unchanged');
+  // Nothing has footage before 1.5 s; the wide starts at 1.5 s, Chloe's camera at 4.7 s.
+  assert.deepStrictEqual(E.avoidEmpty([{ cam: 1, start: 0, end: 10 }], { 0: [[1.5, 30]], 1: [[4.7, 30]] }, [0, 1]), [
+    { cam: 1, start: 0, end: 1.5 },
+    { cam: 0, start: 1.5, end: 4.7 },
+    { cam: 1, start: 4.7, end: 10 }
+  ]);
+});

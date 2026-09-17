@@ -28,18 +28,28 @@ Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 1. Drop in the camera files (with their master audio) and each person's mic file. Arrow Switch
    works out which is which; set the wide shot and who each camera shows.
 2. **SYNC & BUILD**: it syncs every file by audio, imports them into a bin, colour-labels each
-   person's clips, mutes the extra camera audio and builds the sequence ready to cut.
+   person's clips, mutes the extra camera audio and builds the sequence ready to cut. With
+   **Also make a multicam edit** on, it also nests that sequence with Multi-Camera switched on,
+   ready for 🎛 Multicam.
+
+   Cameras and mics are matched by name, not the order you add them: a file called
+   wide/WS/master is the wide, and `Chloe.wav` goes with `CamChloe.mp4`. Check the guesses in the list.
 
 **Cut it** (Cut tab)
 1. Check who's who (it guesses from the tracks).
 2. Pick a preset (Sleepy / Chatty / Chaotic) or tweak the knobs and **save your own**.
 3. Pick how you want it:
-   - **Hide**: razors each angle and disables what isn't on screen.
-   - **Razor**: same, but deletes unused angles.
-   - **Fast cuts**: rebuilds the edit via FCP XML in one import. Real cuts, much faster.
-   - **Multicam**: for sequences cut from a multicam clip. It reads the angles and mics inside
-     the multicam, razors the clip at every switch and adds a marker naming the angle to pick
-     (Premiere doesn't let scripts switch multicam angles).
+   - **⚡ Fast cuts**: rebuilds the edit in one import. Real cuts, unused angles gone. Seconds.
+   - **⚡ Fast hide**: same speed, every angle kept, split at each switch and disabled when off screen.
+   - **🎛 Multicam**: for multicam (or nested) sequences. Cuts the multicam clip at every switch
+     and sets the **real angle** on each piece, so they stay live multicam clips you can re-switch.
+     Premiere can't set angles from a script, so Arrow Switch saves the project, writes the
+     angles into the project file (a backup copy goes to `~/Library/Caches/Arrow Switch/project-backups`)
+     and reopens it — you'll see the project close and reopen for a second.
+   - **🐢 Classic**: the original razor + disable inside Premiere. Same result as Fast hide, slower.
+
+   Arrow Switch never cuts to a camera that has no footage at that moment (late-starting or
+   early-stopping cameras): those shots use the wide, or whichever camera is rolling.
 4. **LISTEN!**, check the preview (click it to jump there in Premiere), then **CUT IT!**
 
 Arrow Switch always saves your project first and works on a new sequence
@@ -59,6 +69,7 @@ extension/            the CEP panel that ships to users
   js/audio.js         ffmpeg decoding -> loudness per window, caching, media probing
   js/sync.js          audio sync: finds each file's offset against a reference camera
   js/xmlcut.js        Fast cuts: rewrites an exported FCP XML sequence into real cuts
+  js/prproj.js        real multicam angles: sets SelectedTrackIndex in the project file
   js/presets.js       built-in + saved presets
   js/copy.js          everything the mascot says, mean and nice
   js/main.js          UI logic; runs in demo mode when opened in a normal browser
@@ -103,6 +114,16 @@ APP_SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
 NOTARY_PROFILE=arrow-switch-notary \
 ./build.sh
 ```
+
+### Test inside Premiere without clicking
+
+`scripts/harness/install.sh` installs the real panel as a hidden extension that starts with
+Premiere (bring Premiere to the front once) and exposes it on the CEP debug port 8089.
+`node scripts/harness/es.js '<ExtendScript>'` runs ExtendScript in Premiere and
+`node scripts/harness/es.js --js '<panel JS>'` runs code in the panel, e.g. clicking its buttons.
+Remove it with `rm -rf ~/Library/Application\ Support/Adobe/CEP/extensions/com.arrow.switch.harness`.
+`scripts/dev-install.sh` installs the working copy as the normal visible panel (signed, with
+remote debugging on port 8088).
 
 ### Develop live inside Premiere
 
