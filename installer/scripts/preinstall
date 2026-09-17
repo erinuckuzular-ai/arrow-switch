@@ -1,4 +1,7 @@
 #!/bin/bash
 # Remove any previous version so stale files don't linger.
+rm -rf "/Library/Application Support/Adobe/CEP/extensions/com.arrow.switch"
+# 1.x shipped under the old name; remove it so Premiere doesn't show two panels.
 rm -rf "/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut"
+pkgutil --forget com.arrow.autocut.pkg >/dev/null 2>&1
 exit 0

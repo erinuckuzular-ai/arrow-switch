@@ -11,7 +11,7 @@ const E = require('../extension/js/engine.js');
 const ffmpeg = A.findFfmpeg(path.join(__dirname, '..', 'extension'));
 
 test('end-to-end on synthesized mics', { skip: !ffmpeg && 'ffmpeg not found' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arrow-switch-'));
   // Host A talks 0-10s and 20-30s, host B talks 10-20s. Each mic gets quiet bleed of the other.
   const make = (file, loudExpr) => {
     execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
@@ -40,7 +40,7 @@ test('end-to-end on synthesized mics', { skip: !ffmpeg && 'ffmpeg not found' }, 
 
 test('one stereo recorder on two tracks: each track hears its own channel, and the cache is reused',
   { skip: !ffmpeg && 'ffmpeg not found' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arrow-switch-'));
   const file = path.join(dir, 'recorder.wav');
   // Left channel talks 0-10 s, right channel talks 10-20 s.
   execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
@@ -63,7 +63,7 @@ test('one stereo recorder on two tracks: each track hears its own channel, and t
 });
 
 test('low rumble does not count as speech', { skip: !ffmpeg && 'ffmpeg not found' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arrow-switch-'));
   const file = path.join(dir, 'rumble.wav');
   // 50 Hz hum for 10 s, then a speech-band tone that is 6 dB quieter than the hum.
   execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
