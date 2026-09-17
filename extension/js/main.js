@@ -23,16 +23,23 @@
   var DEMO_STATE = (QUERY.match(/state=(\w+)/) || [])[1];
   var DEMO_MC = /mc=1/.test(QUERY);
 
-  // Panel colour, matching Premiere label (0-15) and marker (0-7) colours.
+  // Speaker colours live in CSS (--speaker-N, per theme); these map them to the nearest
+  // Premiere label (0-15) and marker (0-7) colours.
   var CHANNELS = [
-    { color: '#86c9ff', label: 4, marker: 6, labelName: 'Cerulean' },
-    { color: '#ff9ec9', label: 6, marker: 1, labelName: 'Rose' },
-    { color: '#7fdcb3', label: 2, marker: 0, labelName: 'Caribbean' },
-    { color: '#ffd772', label: 15, marker: 4, labelName: 'Yellow' },
-    { color: '#b49cff', label: 3, marker: 2, labelName: 'Lavender' },
-    { color: '#ffad85', label: 7, marker: 3, labelName: 'Mango' }
+    { color: 'var(--speaker-1)', label: 4, marker: 6, labelName: 'Cerulean' },
+    { color: 'var(--speaker-2)', label: 6, marker: 1, labelName: 'Rose' },
+    { color: 'var(--speaker-3)', label: 2, marker: 7, labelName: 'Caribbean' },
+    { color: 'var(--speaker-4)', label: 7, marker: 3, labelName: 'Mango' },
+    { color: 'var(--speaker-5)', label: 13, marker: 0, labelName: 'Green' },
+    { color: 'var(--speaker-6)', label: 11, marker: 2, labelName: 'Magenta' }
   ];
-  var WIDE = { color: '#ddd3ea', label: 12, marker: 5, labelName: 'Tan' };
+  var WIDE = { color: 'var(--speaker-wide)', label: 12, marker: 5, labelName: 'Tan' };
+
+  // Canvas can't read CSS variables: resolve 'var(--x)' to the current theme's value.
+  function cssColor(value) {
+    var m = /^var\((--[\w-]+)\)$/.exec(value);
+    return m ? getComputedStyle(document.body).getPropertyValue(m[1]).trim() : value;
+  }
 
   // Hand-drawn critters, one per speaker. Tap a critter to swap it.
   var CRITTERS = [
@@ -726,7 +733,7 @@
     segments.forEach(function (s) {
       var x = (s.start / duration) * w;
       var x2 = (s.end / duration) * w;
-      ctx.fillStyle = camColor(s.cam);
+      ctx.fillStyle = cssColor(camColor(s.cam));
       ctx.fillRect(Math.floor(x), 0, Math.max(1, Math.ceil(x2) - Math.floor(x)), cutH);
     });
     ctx.fillStyle = 'rgba(59,42,85,0.3)';
@@ -740,7 +747,7 @@
       var y = cutH + 4 + li * (LANE_H + LANE_GAP);
       ctx.fillStyle = dark ? 'rgba(185,163,255,0.12)' : 'rgba(143,113,242,0.12)';
       ctx.fillRect(0, y, w, LANE_H);
-      ctx.fillStyle = channelColor(li);
+      ctx.fillStyle = cssColor(channelColor(li));
       var perPx = mask.length / w;
       for (var px = 0; px < w; px++) {
         var a = Math.floor(px * perPx), b = Math.max(a + 1, Math.floor((px + 1) * perPx));
@@ -834,7 +841,7 @@
 
   function confetti() {
     var box = $('confetti');
-    var colors = CHANNELS.map(function (c) { return c.color; }).concat(['#ff7a6b', '#8f71f2']);
+    var colors = CHANNELS.map(function (c) { return c.color; }).concat(['var(--color-accent-solid)', 'var(--color-highlight)']);
     var html = '';
     for (var i = 0; i < 46; i++) {
       var star = i % 9 === 0;
