@@ -844,3 +844,41 @@ body[data-theme="dark"] .sticker::after { background: radial-gradient(circle at 
   transition-property: opacity, transform, filter; transition-duration: 300ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 .icon-btn .glyph.out { opacity: 0; transform: scale(0.25); filter: blur(4px); }
+
+/* ---------------------------------------------------------------- extras */
+.extras { display: grid; gap: 12px; margin-top: 4px; }
+.extra {
+  padding: 2px 12px 12px; border-radius: 18px; background: var(--clay-2);
+  box-shadow: inset 3px 4px 8px rgba(var(--shade), 0.14), inset -3px -3px 6px rgba(var(--hi), var(--hi-a));
+}
+.extra .desc { margin-top: 4px; }
+.extra-name { font: 400 15px var(--display); }
+.extra .slider { transition-property: opacity; transition-duration: 150ms; transition-timing-function: ease-out; }
+.extra .slider.off { opacity: 0.45; }
+.extra.unavailable .switch-row { opacity: 0.55; }
+.extra.unavailable .desc { color: var(--color-text-warning); }
+.extras-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip-note {
+  padding: 4px 10px; border-radius: 999px; font-size: 11.5px;
+  background: var(--color-highlight-soft); color: var(--color-text-on-pastel);
+  box-shadow: 0 2px 0 rgba(var(--shade), 0.18);
+}
+.extras-summary.animate .chip-note { animation: rise 0.35s var(--spring) both; }
+.clips { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.clip {
+  width: 100%; display: grid; grid-template-columns: 24px auto 1fr auto; align-items: center; gap: 8px;
+  padding: 6px 10px 6px 6px; border: 0; border-radius: 18px; text-align: left; cursor: pointer;
+  background: var(--clay); color: var(--ink);
+  box-shadow: 3px 4px 10px rgba(var(--shade), 0.16), inset -2px -2px 4px rgba(var(--shade), 0.08);
+  transition-property: transform, box-shadow; transition-duration: 150ms; transition-timing-function: ease-out;
+}
+.clip:hover { box-shadow: 4px 6px 14px rgba(var(--shade), 0.22), 0 0 0 2px var(--color-highlight); }
+.clip:active { transform: scale(0.96); }
+.clip:focus-visible { outline: 3px solid var(--lilac-deep); outline-offset: 2px; }
+.clip-rank {
+  width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--color-highlight); color: var(--color-text-on-pastel); font: 400 13px/1 var(--display);
+}
+.clip-time { font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+.clip-why { font-size: 11.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-len { font: 400 13px var(--display); }

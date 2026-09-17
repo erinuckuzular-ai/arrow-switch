@@ -5,6 +5,7 @@
  * the source sequence with sequence.exportAsFinalCutProXML(), and this module
  * rewrites it so every camera track only keeps the pieces where that camera is
  * the chosen shot. The result is imported back as a brand new sequence.
+ * With opts.removeRanges it also ripple-deletes dead air from every track.
  *
  * Pure ES5, no DOMParser: runs in Premiere's CEP panel and in plain Node tests
  * (see test/xmlcut.test.js). BigInt is used through BigInt() calls only
@@ -400,8 +401,9 @@
     return Math.floor((start + end) / 2);
   }
 
-  function rebuildTrack(track, segs, camIndex, ticks, stats, mode) {
-    // Pass 1: resolve every item's timeline range (start/end -1 come from transitions).
+  // Every clip/generator on a track with its timeline range resolved (start/end -1 come from
+  // transitions), plus the transitions themselves. Items keep their track order.
+  function resolveItems(track) {
     var items = [];
     for (var i = 0; i < track.children.length; i++) {
       var c = track.children[i];
@@ -410,32 +412,37 @@
     var resolved = [];
     for (var k = 0; k < items.length; k++) {
       var it = items[k];
-      if (it.name === 'transitionitem') continue;
-      stats.clipsIn++;
-      var start = childInt(it, 'start'), end = childInt(it, 'end');
+      if (it.name === 'transitionitem') {
+        resolved.push({ el: it, transition: true, start: childInt(it, 'start'), end: childInt(it, 'end') });
+        continue;
+      }
+      var rawStart = childInt(it, 'start'), rawEnd = childInt(it, 'end');
+      var start = rawStart, end = rawEnd;
       var inF = childInt(it, 'in'), outF = childInt(it, 'out');
       var len = inF !== null && outF !== null ? outF - inF : null;
       if (start === -1) start = transitionCut(items[k - 1], end !== null && end >= 0 && len !== null ? end - len : null);
       if (end === -1) end = transitionCut(items[k + 1], start !== null && start >= 0 && len !== null ? start + len : null);
-      resolved.push({ el: it, start: start, end: end, inF: inF, outF: outF });
+      resolved.push({
+        el: it, transition: false, start: start, end: end, inF: inF, outF: outF,
+        startIsEdge: rawStart === -1, endIsEdge: rawEnd === -1
+      });
     }
+    return resolved;
+  }
 
-    var copiesFor = [];
-    for (var r = 0; r < resolved.length; r++) copiesFor.push(cutItem(resolved[r], segs, camIndex, ticks, mode));
-
-    // Pass 2: rebuild the child list, repeating each item's indentation before every copy.
-    var out = [], pending = [], ri = 0;
+  // Rebuild a track's child list: each clip/generator/transition element is swapped for the
+  // array replace(el) returns, repeating the item's indentation before every copy.
+  function replaceItems(track, replace) {
+    var out = [], pending = [];
     for (var j = 0; j < track.children.length; j++) {
       var node = track.children[j];
       if (isBlank(node)) { pending.push(node); continue; }
-      if (node.type === 'element' && node.name === 'transitionitem') { pending = []; continue; }
-      if (node.type === 'element' && TRIMMABLE[node.name]) {
-        var copies = copiesFor[ri++];
+      if (node.type === 'element' && (TRIMMABLE[node.name] || node.name === 'transitionitem')) {
+        var copies = replace(node);
         for (var q = 0; q < copies.length; q++) {
           for (var w = 0; w < pending.length; w++) out.push({ type: 'text', value: pending[w].value });
           out.push(copies[q]);
         }
-        stats.clipsOut += copies.length;
         pending = [];
         continue;
       }
@@ -445,7 +452,64 @@
     }
     for (var z = 0; z < pending.length; z++) out.push(pending[z]);
     track.children = out;
+  }
+
+  function rebuildTrack(track, segs, camIndex, ticks, stats, mode) {
+    var resolved = resolveItems(track);
+    var copiesFor = [];
+    for (var r = 0; r < resolved.length; r++) {
+      if (resolved[r].transition) continue;
+      stats.clipsIn++;
+      copiesFor.push(cutItem(resolved[r], segs, camIndex, ticks, mode));
+    }
+    // Transitions are dropped: their clips no longer meet at the same edit.
+    var ri = 0;
+    replaceItems(track, function (el) {
+      if (el.name === 'transitionitem') return [];
+      var copies = copiesFor[ri++];
+      stats.clipsOut += copies.length;
+      return copies;
+    });
     return copiesFor;
+  }
+
+  // How an item maps timeline frames to source frames and ticks. Copies carry the source of
+  // the ORIGINAL clip (as a JS property, never serialised) so a piece split again later is
+  // computed from the same origin and neighbours keep tiling exactly.
+  function sourceOf(item) {
+    if (item.el._asSource) return item.el._asSource;
+    var el = item.el;
+    var ticksInText = childText(el, 'pproTicksIn');
+    var hasInOut = item.inF !== null && item.outF !== null;
+    var span = item.end - item.start;
+    return {
+      start: item.start,
+      span: span,
+      inF: item.inF,
+      srcSpan: hasInOut ? item.outF - item.inF : span, // speed = srcSpan / span
+      hasInOut: hasInOut,
+      ticksIn: ticksInText,
+      hasTicks: ticksInText !== null && /^-?\d+$/.test(ticksInText) && child(el, 'pproTicksOut') !== null
+    };
+  }
+
+  // Clone `el` as the piece covering original timeline frames a..b (in/out and ticks follow).
+  // The caller writes <start>/<end>, which may differ from a..b after trimming.
+  function sourcePiece(el, src, a, b, ticks) {
+    var copy = clone(el);
+    if (src.hasInOut) {
+      // Offsets are taken from the original clip start so neighbouring pieces tile exactly.
+      setChildText(copy, 'in', src.inF + Math.round((a - src.start) * src.srcSpan / src.span));
+      setChildText(copy, 'out', src.inF + Math.round((b - src.start) * src.srcSpan / src.span));
+    }
+    if (src.hasTicks) {
+      // ticks offset = frames * speed * ticksPerFrame, ticksPerFrame = tpfNum / tpfDen.
+      var den = src.span * ticks.den;
+      setChildText(copy, 'pproTicksIn', bigAdd(src.ticksIn, mulDivRound((a - src.start) * src.srcSpan, ticks.num, den)).toString());
+      setChildText(copy, 'pproTicksOut', bigAdd(src.ticksIn, mulDivRound((b - src.start) * src.srcSpan, ticks.num, den)).toString());
+    }
+    copy._asSource = src;
+    return copy;
   }
 
   // 'cut': keep only the pieces where this camera is on screen.
@@ -455,12 +519,6 @@
     var wasDisabled = (childText(el, 'enabled') || '').toUpperCase() === 'FALSE';
     if (wasDisabled) return mode === 'disable' ? [el] : [];
     if (start === null || end === null || start < 0 || !(end > start)) return mode === 'disable' ? [el] : [];
-
-    var hasInOut = item.inF !== null && item.outF !== null;
-    var span = end - start;
-    var srcSpan = hasInOut ? item.outF - item.inF : span; // speed = srcSpan / span
-    var ticksInText = childText(el, 'pproTicksIn');
-    var hasTicks = ticksInText !== null && /^-?\d+$/.test(ticksInText) && child(el, 'pproTicksOut') !== null;
 
     var pieces = [];
     if (mode === 'disable') {
@@ -486,31 +544,178 @@
         pieces.push([Math.max(start, seg.startFrame), Math.min(end, seg.endFrame), true]);
       }
     }
+    var src = sourceOf(item);
     var id = getAttr(el, 'id');
     var copies = [];
     for (var p = 0; p < pieces.length; p++) {
       var a = pieces[p][0], b = pieces[p][1];
-      var copy = clone(el);
+      var copy = sourcePiece(el, src, a, b, ticks);
       if (id !== null && pieces.length > 1) setAttr(copy, 'id', id + '-as' + (p + 1));
       setChildText(copy, 'start', a);
       setChildText(copy, 'end', b);
       if (mode === 'disable' && !setChildText(copy, 'enabled', pieces[p][2] ? 'TRUE' : 'FALSE')) {
         copy.children.unshift({ type: 'element', name: 'enabled', attrs: [], children: [{ type: 'text', value: pieces[p][2] ? 'TRUE' : 'FALSE' }], selfClosing: false });
       }
-      if (hasInOut) {
-        // Offsets are taken from the original clip start so neighbouring pieces tile exactly.
-        setChildText(copy, 'in', item.inF + Math.round((a - start) * srcSpan / span));
-        setChildText(copy, 'out', item.inF + Math.round((b - start) * srcSpan / span));
-      }
-      if (hasTicks) {
-        // ticks offset = frames * speed * ticksPerFrame, ticksPerFrame = tpfNum / tpfDen.
-        var den = span * ticks.den;
-        setChildText(copy, 'pproTicksIn', bigAdd(ticksInText, mulDivRound((a - start) * srcSpan, ticks.num, den)).toString());
-        setChildText(copy, 'pproTicksOut', bigAdd(ticksInText, mulDivRound((b - start) * srcSpan, ticks.num, den)).toString());
-      }
       copies.push(copy);
     }
     return copies;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Trim dead air (ripple delete)
+  // ---------------------------------------------------------------------------
+
+  // Sorted, merged [{ startFrame, endFrame, before }] where `before` = frames removed ahead of it.
+  // `limit` (optional) clips the ranges to the sequence length.
+  function normalizeRanges(ranges, limit) {
+    var list = [];
+    for (var i = 0; ranges && i < ranges.length; i++) {
+      var a = Math.max(0, Math.round(ranges[i].startFrame)), b = Math.round(ranges[i].endFrame);
+      if (limit > 0 && b > limit) b = limit;
+      if (b > a) list.push({ startFrame: a, endFrame: b });
+    }
+    list.sort(function (x, y) { return x.startFrame - y.startFrame; });
+    var out = [];
+    for (var k = 0; k < list.length; k++) {
+      var last = out[out.length - 1];
+      if (last && list[k].startFrame <= last.endFrame) last.endFrame = Math.max(last.endFrame, list[k].endFrame);
+      else out.push(list[k]);
+    }
+    var removed = 0;
+    for (var r = 0; r < out.length; r++) {
+      out[r].before = removed;
+      removed += out[r].endFrame - out[r].startFrame;
+    }
+    return out;
+  }
+
+  // First range whose endFrame > frame.
+  function firstRangeAfter(ranges, frame) {
+    var lo = 0, hi = ranges.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (ranges[mid].endFrame > frame) hi = mid; else lo = mid + 1;
+    }
+    return lo;
+  }
+
+  function mapNormalized(frame, ranges) {
+    var i = firstRangeAfter(ranges, frame);
+    if (i < ranges.length && frame >= ranges[i].startFrame) return ranges[i].startFrame - ranges[i].before;
+    if (i < ranges.length) return frame - ranges[i].before;
+    var last = ranges[ranges.length - 1];
+    return last ? frame - last.before - (last.endFrame - last.startFrame) : frame;
+  }
+
+  // Frame on the original timeline -> frame after trimming. Frames inside a removed range
+  // land on where that range was cut out.
+  function mapFrame(frame, ranges) {
+    return mapNormalized(frame, normalizeRanges(ranges));
+  }
+
+  function intersectsRange(ranges, a, b) {
+    var i = firstRangeAfter(ranges, a);
+    return i < ranges.length && ranges[i].startFrame < b;
+  }
+
+  function trimTrack(track, ranges, ticks) {
+    var resolved = resolveItems(track);
+    var keepAt = [], replacements = [];
+    for (var r = 0; r < resolved.length; r++) {
+      var item = resolved[r], el = item.el;
+      if (item.transition) {
+        var keep = item.start === null || item.end === null || !intersectsRange(ranges, item.start, item.end);
+        keepAt[r] = keep;
+        if (keep) {
+          if (item.start !== null) setChildText(el, 'start', mapNormalized(item.start, ranges));
+          if (item.end !== null) setChildText(el, 'end', mapNormalized(item.end, ranges));
+        }
+        replacements.push(keep ? [el] : []);
+        continue;
+      }
+      replacements.push(null); // filled below, once every transition's fate is known
+    }
+    // Transitions sit right next to their clips in resolved order.
+    var kept = function (at) { return at >= 0 && at < resolved.length && resolved[at].transition && keepAt[at]; };
+
+    for (var k = 0; k < resolved.length; k++) {
+      var it = resolved[k];
+      if (it.transition) continue;
+      var start = it.start, end = it.end;
+      if (start === null || end === null || start < 0 || !(end > start)) { replacements[k] = [it.el]; continue; }
+      // Surviving pieces of start..end (original frames).
+      var pieces = [], cursor = start;
+      for (var q = firstRangeAfter(ranges, start); q < ranges.length && ranges[q].startFrame < end; q++) {
+        if (ranges[q].startFrame > cursor) pieces.push([cursor, ranges[q].startFrame]);
+        cursor = Math.max(cursor, ranges[q].endFrame);
+      }
+      if (end > cursor) pieces.push([cursor, end]);
+
+      var src = null, id = getAttr(it.el, 'id'), copies = [];
+      for (var p = 0; p < pieces.length; p++) {
+        var a = pieces[p][0], b = pieces[p][1];
+        var copy;
+        if (a === start && b === end) {
+          copy = it.el; // untouched by any range: just slides left
+        } else {
+          if (!src) src = sourceOf(it);
+          copy = sourcePiece(it.el, src, a, b, ticks);
+          if (id !== null && pieces.length > 1) setAttr(copy, 'id', id + '-t' + (p + 1));
+        }
+        // A -1 edge stays -1 while its transition survives; otherwise it becomes a real frame.
+        setChildText(copy, 'start', a === start && it.startIsEdge && kept(k - 1) ? -1 : mapNormalized(a, ranges));
+        setChildText(copy, 'end', b === end && it.endIsEdge && kept(k + 1) ? -1 : mapNormalized(b, ranges));
+        copies.push(copy);
+      }
+      replacements[k] = copies;
+    }
+
+    var ri = 0;
+    replaceItems(track, function () { return replacements[ri++]; });
+  }
+
+  // Sequence markers: <in>/<out> are sequence frames (out -1 = no duration).
+  function trimMarkers(parent, ranges) {
+    removeChildren(parent, function (m) {
+      if (m.name !== 'marker') return false;
+      var inF = childInt(m, 'in');
+      return inF !== null && inF >= 0 && intersectsRange(ranges, inF, inF + 1);
+    });
+    var markers = children(parent, 'marker');
+    for (var i = 0; i < markers.length; i++) {
+      var mIn = childInt(markers[i], 'in'), mOut = childInt(markers[i], 'out');
+      if (mIn !== null && mIn >= 0) setChildText(markers[i], 'in', mapNormalized(mIn, ranges));
+      if (mOut !== null && mOut >= 0) setChildText(markers[i], 'out', mapNormalized(mOut, ranges));
+    }
+  }
+
+  function allTracks(sequence) {
+    return videoTracks(sequence).concat(children(child(child(sequence, 'media'), 'audio'), 'track'));
+  }
+
+  // Last frame anything reaches: the larger of <duration> and every item's <end>.
+  function sequenceEnd(sequence) {
+    var last = childInt(sequence, 'duration') || 0;
+    var tracks = allTracks(sequence);
+    for (var t = 0; t < tracks.length; t++) {
+      var items = children(tracks[t]);
+      for (var i = 0; i < items.length; i++) {
+        if (!TRIMMABLE[items[i].name] && items[i].name !== 'transitionitem') continue;
+        var end = childInt(items[i], 'end');
+        if (end !== null && end > last) last = end;
+      }
+    }
+    return last;
+  }
+
+  function trimSequence(sequence, ranges, ticks) {
+    var media = child(sequence, 'media');
+    var tracks = allTracks(sequence);
+    for (var t = 0; t < tracks.length; t++) trimTrack(tracks[t], ranges, ticks);
+    trimMarkers(sequence, ranges);
+    if (media) trimMarkers(media, ranges);
+    var duration = childInt(sequence, 'duration');
+    if (duration !== null && duration > 0) setChildText(sequence, 'duration', mapNormalized(duration, ranges));
   }
 
   // xmeml <file id> rule: first occurrence in document order is the full definition,
@@ -580,6 +785,8 @@
 
     var defs = {};
     collectFileDefinitions(doc, defs);
+    // Removed frames past the end of the sequence don't shorten anything.
+    var ranges = normalizeRanges(opts.removeRanges, sequenceEnd(sequence));
 
     // Rule 1: new identity.
     if (opts.newName !== undefined && opts.newName !== null) {
@@ -596,7 +803,7 @@
     if (child(sequence, 'uuid')) setChildText(sequence, 'uuid', makeUuid());
 
     // Rule 2: camera tracks keep only their segments.
-    var stats = { clipsIn: 0, clipsOut: 0, cuts: Math.max(0, segs.length - 1), cameras: 0 };
+    var stats = { clipsIn: 0, clipsOut: 0, cuts: Math.max(0, segs.length - 1), cameras: 0, removedFrames: 0, removedRanges: ranges.length };
     var tracks = videoTracks(sequence);
     var done = {};
     for (var t = 0; t < camTracks.length; t++) {
@@ -608,10 +815,17 @@
       if (stats.clipsOut > before) stats.cameras++;
     }
 
-    // Rule 3: links no longer describe matching video/audio pairs.
+    // Rule 3: trim dead air. Ranges are original sequence frames; every track closes the gaps.
+    if (ranges.length) {
+      var lastRange = ranges[ranges.length - 1];
+      stats.removedFrames = lastRange.before + lastRange.endFrame - lastRange.startFrame;
+      trimSequence(sequence, ranges, ticks);
+    }
+
+    // Rule 4: links no longer describe matching video/audio pairs.
     removeDeep(sequence, 'link');
 
-    // Rule 4: file definitions travel to the new first occurrence.
+    // Rule 5: file definitions travel to the new first occurrence.
     fixFileReferences(doc, defs, {});
 
     return { xml: serialize(doc), stats: stats };
@@ -658,6 +872,7 @@
     parse: parse,
     serialize: serialize,
     rebuild: rebuild,
+    mapFrame: mapFrame,
     listClips: listClips,
     countClips: countClips,
     _findSequence: findSequence,
