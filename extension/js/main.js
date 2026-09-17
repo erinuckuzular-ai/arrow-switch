@@ -105,14 +105,24 @@
 
   // ---------------------------------------------------------------- talking
 
-  function t(key, vars) { return Copy.line(ui.tone, key, vars); }
+  // Random line per key, but stable until the key changes, so re-renders don't flicker between jokes.
+  var pinned = {};
+  function t(key, vars) {
+    if (key === 'result') {
+      var set = (Copy.LINES[ui.tone] || Copy.LINES.mean)[key] || [];
+      if (pinned.tone !== ui.tone || pinned.index === undefined || pinned.index >= set.length) pinned = { tone: ui.tone, index: Math.floor(Math.random() * set.length) };
+      return Copy.line(ui.tone, key, vars, function () { return pinned.index; });
+    }
+    return Copy.line(ui.tone, key, vars);
+  }
 
-  function say(msg, mood) {
+  // quiet: update the words without the pop (used while dragging knobs, many times a second).
+  function say(msg, mood, quiet) {
     var el = $('status');
+    var changed = el.innerHTML !== msg;
     el.innerHTML = msg;
     el.className = mood === 'error' ? 'error' : '';
-    void el.offsetWidth;
-    el.className += ' pop';
+    if (changed && !quiet) { void el.offsetWidth; el.className += ' pop'; }
     setMood(mood || 'idle');
   }
 
@@ -122,11 +132,16 @@
   var toastTimer;
   function toast(msg) {
     var el = $('toast');
-    el.hidden = true; void el.offsetWidth;
+    clearTimeout(toastTimer);
     el.textContent = msg;
     el.hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+    el.classList.remove('leaving', 'enter');
+    void el.offsetWidth;
+    el.classList.add('enter');
+    toastTimer = setTimeout(function () {
+      el.classList.add('leaving');
+      toastTimer = setTimeout(function () { el.hidden = true; el.classList.remove('leaving', 'enter'); }, 160);
+    }, 2600);
   }
 
   function sayError(err) { say(t('error', { msg: escapeHtml(err && err.message ? err.message : String(err)) }), 'error'); }
@@ -223,16 +238,41 @@
     }
   }
 
+  // Swap an icon button's glyph: the old one scales/blurs out while the new one comes in.
+  function setGlyph(btn, glyph) {
+    var current = btn.querySelector('.glyph:not(.out)');
+    if (current && current.textContent === glyph) return;
+    var next = document.createElement('span');
+    next.className = 'glyph out';
+    next.textContent = glyph;
+    if (!current) { btn.textContent = ''; next.className = 'glyph'; btn.appendChild(next); return; }
+    btn.appendChild(next);
+    void next.offsetWidth;
+    next.className = 'glyph';
+    current.className = 'glyph out';
+    setTimeout(function () { if (current.parentNode) current.parentNode.removeChild(current); }, 320);
+  }
+
+  // Flipping the theme changes colours everywhere at once; with transitions on, it smears.
+  function withoutTransitions(fn) {
+    var style = document.createElement('style');
+    style.textContent = '*,*::before,*::after{transition:none !important}';
+    document.head.appendChild(style);
+    fn();
+    void document.body.offsetHeight;
+    requestAnimationFrame(function () { document.head.removeChild(style); });
+  }
+
   function applyTheme() {
     var dark = ui.theme === 'dark' || (ui.theme === 'auto' && premiereIsDark());
-    document.body.setAttribute('data-theme', dark ? 'dark' : 'light');
-    $('themeBtn').textContent = ui.theme === 'auto' ? '◐' : ui.theme === 'dark' ? '🌙' : '☀️';
+    withoutTransitions(function () { document.body.setAttribute('data-theme', dark ? 'dark' : 'light'); });
+    setGlyph($('themeBtn'), ui.theme === 'auto' ? '◐' : ui.theme === 'dark' ? '🌙' : '☀️');
     $('themeBtn').title = 'Theme: ' + ui.theme + ' (click to change)';
     if (state.segments && !$('result').hidden) drawPreview(state.segments, state.seq.durationSec);
   }
 
   function applyTone() {
-    $('toneBtn').textContent = ui.tone === 'mean' ? '😈' : '😇';
+    setGlyph($('toneBtn'), ui.tone === 'mean' ? '😈' : '😇');
     $('toneBtn').title = ui.tone === 'mean' ? 'Tone: mean (click for nice)' : 'Tone: nice (click for mean)';
   }
 
@@ -244,6 +284,8 @@
     document.querySelector('.tabs').setAttribute('data-active', tab);
     $('setupPane').hidden = tab !== 'setup';
     $('cutPane').hidden = tab !== 'cut';
+    var pane = $(tab === 'setup' ? 'setupPane' : 'cutPane');
+    if (!pane.classList.contains('seen')) setTimeout(function () { pane.classList.add('seen'); }, 900);
     $('dock').setAttribute('data-tab', tab);
     if (tab === 'setup' && !state.setup.busy) say(t('setupHello'));
     if (tab === 'cut' && !state.busy) {
@@ -290,7 +332,7 @@
       $('empty').hidden = true;
       $('app').hidden = false;
       $('dock').classList.remove('empty');
-      renderSpeakers();
+      renderSpeakers(changed);
       renderProgram();
     }).catch(function (err) {
       state.seq = null;
@@ -408,9 +450,10 @@
   function channel(i) { return CHANNELS[i % CHANNELS.length]; }
   function channelColor(i) { return channel(i).color; }
 
-  function renderSpeakers() {
+  function renderSpeakers(animate) {
     var seq = state.seq;
     var box = $('speakers');
+    box.classList.toggle('animate', !!animate);
     box.innerHTML = '';
     state.speakers.forEach(function (sp, i) {
       var row = document.createElement('div');
@@ -638,6 +681,8 @@
       wrap.classList.remove('reveal'); void wrap.offsetWidth; wrap.classList.add('reveal');
     }
     renderWarnings();
+    $('legend').classList.toggle('animate', !!reveal);
+    $('warnings').classList.toggle('animate', !!reveal);
     $('rulerMid').textContent = timecode(dur / 2);
     $('rulerEnd').textContent = timecode(dur);
 
@@ -659,7 +704,7 @@
     if (reveal) countUp($('programMeta'), cuts, ' cuts!');
     else $('programMeta').textContent = cuts + ' cuts!';
     renderDock(cuts);
-    if (!state.busy) say((state.listenNote || '') + t('result', { cuts: cuts, avg: avg.toFixed(1) }));
+    if (!state.busy) say((state.listenNote || '') + t('result', { cuts: cuts, avg: avg.toFixed(1) }), 'idle', !reveal);
   }
 
   // Top: the cut (one colour per camera). Below: one thin lane per speaker showing
@@ -1145,10 +1190,13 @@
       ? cams.length + (cams.length === 1 ? ' camera · ' : ' cameras · ') + mics.length + (mics.length === 1 ? ' mic' : ' mics')
       : 'Add your camera and mic files first';
     var list = $('fileList');
+    list.classList.add('animate');
+    renderFiles.shown = renderFiles.shown || {};
     list.innerHTML = '';
     cams.concat(mics).forEach(function (f, idx) {
       var li = document.createElement('li');
-      li.className = 'file';
+      li.className = 'file' + (renderFiles.shown[f.id] ? '' : ' new');
+      renderFiles.shown[f.id] = true;
       li.style.animationDelay = (idx * 0.04) + 's';
       var meta;
       if (f.kind === 'camera') {
@@ -1176,7 +1224,7 @@
           state.setup.files = state.setup.files.filter(function (x) { return x.id !== f.id; });
           assignSetupRoles();
           renderFiles();
-        }, 220);
+        }, 160);
       });
       li.querySelectorAll('[data-k]').forEach(function (el) {
         el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', function () {
