@@ -161,3 +161,63 @@ test('never cuts to a camera that has no footage yet', () => {
     { cam: 1, start: 4.7, end: 10 }
   ]);
 });
+
+test('reaction shots: a listener laugh gets a brief cutaway, then back', () => {
+  const a = [[0, 90]];
+  const laughs = [[30.4, 31.2], [34.4, 35.0], [60.4, 61.3]];
+  const tracks = [mic(90, a, laughs), mic(90, laughs, a)];
+  const speech = E.detectSpeech(tracks, { windowSec: W });
+  assert.ok(speech.bursts[1].length >= 3, 'laughs kept as bursts');
+  const segs = E.buildEdit(speech.active, { windowSec: W, speakerCams: [1, 2], wideCam: null, maxShotSec: 0 });
+  assert.deepStrictEqual(segs.map((s) => s.cam), [1]);
+  const r = E.addReactions(segs, speech, { speakerCams: [1, 2], wideCam: null, reactionEverySec: 20 });
+  // 30.4 and 34.4 are too close together: only one of them, plus 60.4.
+  assert.strictEqual(r.reactions.length, 2);
+  assert.deepStrictEqual(r.segments.map((s) => s.cam), [1, 2, 1, 2, 1]);
+  assert.ok(Math.abs(r.segments[1].start - 30.25) < 0.5 || Math.abs(r.segments[1].start - 34.25) < 0.5);
+  assert.ok(r.segments[1].end - r.segments[1].start >= 1.3);
+  assert.strictEqual(r.segments[0].start, 0);
+  assert.strictEqual(r.segments[r.segments.length - 1].end, segs[0].end);
+  for (let i = 1; i < r.segments.length; i++) assert.strictEqual(r.segments[i].start, r.segments[i - 1].end);
+});
+
+test('reaction shots: nothing when the listener is silent or has no camera', () => {
+  const tracks = [mic(60, [[0, 60]]), mic(60, [])];
+  const speech = E.detectSpeech(tracks, { windowSec: W });
+  const segs = E.buildEdit(speech.active, { windowSec: W, speakerCams: [1, 2], wideCam: null });
+  assert.strictEqual(E.addReactions(segs, speech, { speakerCams: [1, 2] }).reactions.length, 0);
+  const laughs = [[30.4, 31.2]];
+  const s2 = E.detectSpeech([mic(60, [[0, 60]], laughs), mic(60, laughs, [[0, 60]])], { windowSec: W });
+  const segs2 = E.buildEdit(s2.active, { windowSec: W, speakerCams: [1, 1], wideCam: null });
+  assert.strictEqual(E.addReactions(segs2, s2, { speakerCams: [1, 1] }).reactions.length, 0, 'same camera: pointless');
+});
+
+test('dead air: long silences found with breathing room, head and tail left alone', () => {
+  const a = [[0, 10], [25, 30]];
+  const b = [[10, 20], [30.8, 40]];
+  const speech = E.detectSpeech([mic(45, a, b), mic(45, b, a)], { windowSec: W });
+  const gaps = E.findDeadAir(speech, { minSec: 2, padSec: 0.4 });
+  assert.strictEqual(gaps.length, 1, JSON.stringify(gaps));
+  assert.ok(Math.abs(gaps[0].start - 20.4) < 0.5 && Math.abs(gaps[0].end - 24.6) < 0.5, JSON.stringify(gaps));
+});
+
+test('mapTime shifts times past removed ranges', () => {
+  const r = [{ start: 10, end: 14 }, { start: 20, end: 21 }];
+  assert.strictEqual(E.mapTime(5, r), 5);
+  assert.strictEqual(E.mapTime(12, r), 10);
+  assert.strictEqual(E.mapTime(15, r), 11);
+  assert.strictEqual(E.mapTime(30, r), 25);
+});
+
+test('highlights: the lively stretch outranks the monologue', () => {
+  const a = [[0, 120]], b = [], turnsA = [], turnsB = [];
+  for (let t = 120; t < 180; t += 6) { turnsA.push([t, t + 3]); turnsB.push([t + 3, t + 6]); }
+  const laughs = [[20.4, 21], [140.4, 141], [150.4, 151], [160.4, 161]];
+  const tracks = [mic(240, a.concat(turnsA, [[180, 240]]), turnsB.concat(laughs)), mic(240, b.concat(turnsB, laughs), turnsA)];
+  const speech = E.detectSpeech(tracks, { windowSec: W });
+  const h = E.findHighlights(speech, { count: 2 });
+  assert.ok(h.length >= 1);
+  assert.ok(h[0].start >= 100 && h[0].start <= 150, JSON.stringify(h[0]));
+  assert.ok(h[0].end - h[0].start >= 30);
+  if (h[1]) assert.ok(h[1].start >= h[0].end || h[1].end <= h[0].start, 'no overlap');
+});

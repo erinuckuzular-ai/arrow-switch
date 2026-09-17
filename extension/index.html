@@ -221,8 +221,30 @@
         <p id="outputDesc" class="desc"></p>
       </section>
 
+      <section class="sticker" id="extrasCard">
+        <h2><span class="num">4</span> Extras</h2>
+        <div class="extras">
+          <div class="extra">
+            <label class="switch-row"><input type="checkbox" id="reactions"><span class="sw"></span> <span class="extra-name">🎭 Reaction shots</span></label>
+            <p class="desc">Cuts to whoever laughs or goes “no way” for a second, then back.</p>
+            <label class="slider" data-extra="reactions"><span>At most one every</span><output data-for="reactionEverySec"></output>
+              <input type="range" id="reactionEverySec" min="8" max="90" step="2"></label>
+          </div>
+          <div class="extra" id="trimExtra">
+            <label class="switch-row"><input type="checkbox" id="trimSilence"><span class="sw"></span> <span class="extra-name">✂️ Trim dead air</span></label>
+            <p class="desc" id="trimDesc">Removes long silences from every track, keeping a breath either side.</p>
+            <label class="slider" data-extra="trimSilence"><span>Trim pauses longer than</span><output data-for="trimMinSec"></output>
+              <input type="range" id="trimMinSec" min="1" max="8" step="0.5"></label>
+          </div>
+          <div class="extra">
+            <label class="switch-row"><input type="checkbox" id="highlights"><span class="sw"></span> <span class="extra-name">🔥 Find the best clips</span></label>
+            <p class="desc">Marks the liveliest 30–75 s stretches for socials, as markers on the new sequence.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="sticker">
-        <h2><span class="num">4</span> Do the thing</h2>
+        <h2><span class="num">5</span> Do the thing</h2>
         <span id="programMeta" class="scribble"></span>
 
         <div id="meters" class="meters" hidden></div>
@@ -234,6 +256,11 @@
           </div>
           <div class="ruler"><span>0:00:00</span><span id="rulerMid"></span><span id="rulerEnd"></span></div>
           <ul id="warnings" class="warnings" hidden></ul>
+          <div id="extrasSummary" class="extras-summary" hidden></div>
+          <div id="clipsBox" hidden>
+            <p class="legend-title">🔥 Best clips</p>
+            <ol id="clips" class="clips"></ol>
+          </div>
           <p class="legend-title">Screen time</p>
           <div id="legend" class="legend"></div>
         </div>

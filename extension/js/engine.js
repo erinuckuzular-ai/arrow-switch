@@ -278,8 +278,22 @@
 
     var gap = Math.round(o.bridgeGapSec / o.windowSec);
     var minRun = Math.round(o.minTalkSec / o.windowSec);
+    // Short bursts (laughs, "no way", "mm") never move the main edit, but they're exactly
+    // what reaction shots want, so remember them before they're cleaned away.
+    var bursts = [];
+    for (var e0 = 0; e0 < S; e0++) {
+      cleanMask(masks[e0], gap, 0);
+      bursts.push([]);
+      for (var b0 = 0; b0 < n;) {
+        if (!masks[e0][b0]) { b0++; continue; }
+        var b1 = b0, peak = -Infinity;
+        while (b1 < n && masks[e0][b1]) { peak = Math.max(peak, sm[e0][b1] - stats[e0].speech); b1++; }
+        if (b1 - b0 < minRun) bursts[e0].push({ start: b0 * o.windowSec, end: b1 * o.windowSec, peakDb: peak });
+        b0 = b1;
+      }
+    }
     for (var e = 0; e < S; e++) {
-      cleanMask(masks[e], gap, minRun);
+      cleanMask(masks[e], 0, minRun);
       var cnt = 0;
       for (var f = 0; f < n; f++) cnt += masks[e][f];
       stats[e].talkSec = cnt * o.windowSec;
@@ -304,7 +318,17 @@
       }
     }
 
-    return { active: active, talking: masks, stats: stats, similar: similar };
+    // Per window: how far the loudest mic is above its own speaking level (for highlights),
+    // and whether anyone at all is over their threshold (for dead air).
+    var energy = new Float32Array(n), quiet = new Uint8Array(n);
+    for (var q0 = 0; q0 < n; q0++) {
+      var top0 = -60;
+      for (var q1 = 0; q1 < S; q1++) top0 = Math.max(top0, sm[q1][q0] - stats[q1].speech);
+      energy[q0] = top0;
+      quiet[q0] = strength[q0] < 0 && !active[q0].length ? 1 : 0;
+    }
+
+    return { active: active, talking: masks, stats: stats, similar: similar, bursts: bursts, energy: energy, quiet: quiet, windowSec: o.windowSec };
   }
 
   function mergeEqual(runs) {
@@ -519,6 +543,164 @@
     return mergeEqual(pieces);
   }
 
+  /*
+   * Reaction shots: while one person holds the floor, briefly cut to a listener who laughs or
+   * reacts, then back. speech = detectSpeech() result; segments = the edit so far.
+   * cfg: { speakerCams, wideCam, reactionEverySec (min gap between reactions, default 20),
+   *        reactionSec (shot length, default 1.4), minShotSec }
+   * Returns { segments, reactions: [{ start, end, speaker, cam }] }.
+   */
+  function addReactions(segments, speech, cfg) {
+    var every = cfg.reactionEverySec || 20, len = cfg.reactionSec || 1.4;
+    var guard = Math.max(1.5, (cfg.minShotSec || 2.5) * 0.6);
+    var cams = cfg.speakerCams || [], W = speech.windowSec;
+    var candidates = [];
+    speech.bursts.forEach(function (list, sp) {
+      list.forEach(function (b) {
+        var dur = b.end - b.start;
+        if (dur < 0.25 || dur > 1.6 || b.peakDb < -9) return;
+        candidates.push({ speaker: sp, start: b.start, end: b.end, score: b.peakDb + dur * 4 });
+      });
+    });
+    // Strongest reactions first, then keep the ones that fit the spacing rules.
+    candidates.sort(function (a, b) { return b.score - a.score; });
+    var chosen = [];
+    candidates.forEach(function (c) {
+      var cam = cams[c.speaker];
+      if (cam === undefined || cam === cfg.wideCam) return;
+      var mid = Math.floor(((c.start + c.end) / 2) / W);
+      var holders = speech.active[mid] || [];
+      // Someone else must be holding the floor, alone, on a different camera.
+      var holder = holders.length === 1 ? holders[0] : -1;
+      if (holder < 0 || holder === c.speaker) {
+        for (var k = Math.floor(c.start / W); k >= 0 && k > Math.floor((c.start - 1) / W); k--) {
+          if (speech.active[k] && speech.active[k].length === 1 && speech.active[k][0] !== c.speaker) { holder = speech.active[k][0]; break; }
+        }
+      }
+      if (holder < 0 || holder === c.speaker || cams[holder] === cam) return;
+      var start = Math.max(0, c.start - 0.15), end = Math.max(c.end + 0.5, start + len);
+      var seg = segmentAtTime(segments, (start + end) / 2);
+      if (!seg || seg.cam !== cams[holder]) return;
+      if (start - seg.start < guard || seg.end - end < guard) return;
+      for (var i = 0; i < chosen.length; i++) if (Math.abs(chosen[i].start - start) < every) return;
+      chosen.push({ start: start, end: end, speaker: c.speaker, cam: cam });
+    });
+    chosen.sort(function (a, b) { return a.start - b.start; });
+    if (!chosen.length) return { segments: segments, reactions: [] };
+
+    var out = [], ci = 0;
+    segments.forEach(function (seg) {
+      var cursor = seg.start;
+      while (ci < chosen.length && chosen[ci].start < seg.end) {
+        var r = chosen[ci];
+        if (r.start >= seg.start && r.end <= seg.end) {
+          if (r.start > cursor) out.push({ cam: seg.cam, start: cursor, end: r.start });
+          out.push({ cam: r.cam, start: r.start, end: r.end, reaction: true });
+          cursor = r.end;
+        }
+        ci++;
+      }
+      if (seg.end > cursor) out.push({ cam: seg.cam, start: cursor, end: seg.end });
+    });
+    return { segments: out, reactions: chosen };
+  }
+
+  function segmentAtTime(segments, t) {
+    var lo = 0, hi = segments.length - 1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (t < segments[mid].start) hi = mid - 1;
+      else if (t >= segments[mid].end) lo = mid + 1;
+      else return segments[mid];
+    }
+    return null;
+  }
+
+  /*
+   * Dead air: stretches where nobody is talking for at least minSec. Each keeps padSec of
+   * pause on both sides so the edit still breathes. Returns [{ start, end }] to remove.
+   */
+  function findDeadAir(speech, opts) {
+    var min = (opts && opts.minSec) || 2, pad = opts && opts.padSec !== undefined ? opts.padSec : 0.4;
+    var W = speech.windowSec, q = speech.quiet, out = [];
+    for (var i = 0; i < q.length;) {
+      if (!q[i]) { i++; continue; }
+      var j = i;
+      while (j < q.length && q[j]) j++;
+      var a = i * W + pad, b = j * W - pad;
+      // Never trim the head or tail of the episode: that's the editor's call.
+      if (i > 0 && j < q.length && (j - i) * W >= min && b > a) out.push({ start: a, end: b });
+      i = j;
+    }
+    return out;
+  }
+
+  // Position of t after the ranges are removed (inside a range maps to its start).
+  function mapTime(t, ranges) {
+    var shift = 0;
+    for (var i = 0; i < ranges.length; i++) {
+      if (t >= ranges[i].end) shift += ranges[i].end - ranges[i].start;
+      else if (t > ranges[i].start) return ranges[i].start - shift;
+    }
+    return t - shift;
+  }
+
+  /*
+   * Best clips: the most alive 30-90 s stretches, for social posts. Scores laughs and
+   * reactions, quick back-and-forth, loudness and overlap, then snaps each clip to start and
+   * end on a pause so it doesn't begin mid-word.
+   * Returns [{ start, end, score, reasons: [...] }] best first, non-overlapping.
+   */
+  function findHighlights(speech, opts) {
+    opts = opts || {};
+    var count = opts.count || 5, minLen = opts.minSec || 30, maxLen = opts.maxSec || 75;
+    var W = speech.windowSec, n = speech.active.length, total = n * W;
+    if (total < minLen) return [];
+    var step = 5, len = Math.min(maxLen, Math.max(minLen, 45));
+    var bins = Math.ceil(total / step);
+    var laughs = new Float32Array(bins), turns = new Float32Array(bins), loud = new Float32Array(bins), overlap = new Float32Array(bins);
+    speech.bursts.forEach(function (list) {
+      list.forEach(function (b) { if (b.peakDb > -9) laughs[Math.min(bins - 1, Math.floor(b.start / step))] += 1; });
+    });
+    var last = -1;
+    for (var i = 0; i < n; i++) {
+      var bin = Math.floor((i * W) / step), a = speech.active[i];
+      if (a.length === 1 && a[0] !== last) { if (last >= 0) turns[bin] += 1; last = a[0]; }
+      if (a.length > 1) overlap[bin] += W;
+      loud[bin] += Math.max(0, speech.energy[i] + 6) * W;
+    }
+    var span = Math.round(len / step), scored = [];
+    for (var s0 = 0; s0 + span <= bins; s0++) {
+      var L = 0, T = 0, E = 0, O = 0;
+      for (var k = s0; k < s0 + span; k++) { L += laughs[k]; T += turns[k]; E += loud[k]; O += overlap[k]; }
+      var score = L * 3 + T * 1.5 + E * 0.15 + O * 0.5;
+      var reasons = [];
+      if (L >= 2) reasons.push(L + ' reactions');
+      if (T >= span * 0.5) reasons.push('fast back-and-forth');
+      if (O >= 3) reasons.push('talking over each other');
+      if (!reasons.length) reasons.push('high energy');
+      scored.push({ start: s0 * step, end: (s0 + span) * step, score: score, reasons: reasons });
+    }
+    scored.sort(function (x, y) { return y.score - x.score; });
+    var picked = [];
+    for (var p = 0; p < scored.length && picked.length < count; p++) {
+      var c = scored[p];
+      if (picked.some(function (q) { return c.start < q.end && c.end > q.start; })) continue;
+      picked.push(c);
+    }
+    // Snap edges outward to the nearest pause within 4 s so clips start and end cleanly.
+    function snap(t, dir) {
+      for (var d = 0; d <= 4 / W; d++) {
+        var w = Math.round(t / W) + dir * d;
+        if (w <= 0 || w >= n) break;
+        if (!speech.active[w].length) return w * W;
+      }
+      return Math.max(0, Math.min(total, t));
+    }
+    picked.forEach(function (c) { c.start = snap(c.start, -1); c.end = snap(c.end, 1); c.score = Math.round(c.score); });
+    return picked;
+  }
+
   // Round segment boundaries to whole frames and drop anything that collapses.
   function snapToFrames(segments, fps) {
     var out = [];
@@ -549,6 +731,10 @@
     buildEdit: buildEdit,
     snapToFrames: snapToFrames,
     avoidEmpty: avoidEmpty,
+    addReactions: addReactions,
+    findDeadAir: findDeadAir,
+    findHighlights: findHighlights,
+    mapTime: mapTime,
     summarize: summarize,
     _smoothDb: smoothDb,
     _absorbShort: absorbShort,

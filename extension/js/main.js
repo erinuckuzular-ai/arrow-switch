@@ -77,7 +77,9 @@
     minShotSec: function (v) { return Number(v).toFixed(1) + ' s'; },
     maxShotSec: function (v) { return Number(v) === 0 ? 'off' : v + ' s'; },
     wideShotSec: function (v) { return Number(v).toFixed(1) + ' s'; },
-    leadInSec: function (v) { return Math.round(v * 1000) + ' ms'; }
+    leadInSec: function (v) { return Math.round(v * 1000) + ' ms'; },
+    reactionEverySec: function (v) { return v + ' s'; },
+    trimMinSec: function (v) { return Number(v).toFixed(1) + ' s'; }
   };
 
   var OUTPUT_DESC = {
@@ -89,13 +91,17 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  // Extras and their defaults. Reaction shots and trimming change the edit, so they start off.
+  var EXTRAS = { reactions: false, reactionEverySec: 24, trimSilence: false, trimMinSec: 2.5, highlights: true };
+  var EXTRA_SWITCHES = ['reactions', 'trimSilence', 'highlights'];
+
   var ui = { theme: 'auto', tone: 'mean', tab: 'cut' };
   var state = {
     seq: null,
     speakers: [],        // [{ name, audio, video, critter }]
     wideCam: -1,
     preset: 'chatty',
-    settings: Object.assign({ overlapToWide: true, output: 'fast' }, Presets.BUILTIN[1].settings),
+    settings: Object.assign({ overlapToWide: true, output: 'fast' }, Presets.BUILTIN[1].settings, EXTRAS),
     levels: {},          // audio track index -> Float32Array
     speech: null,        // last detectSpeech() result, for the lanes and warnings
     segments: null,
@@ -572,6 +578,12 @@
       document.querySelector('output[data-for="' + key + '"]').textContent = SLIDERS[key](state.settings[key]);
     });
     $('overlapToWide').checked = state.settings.overlapToWide;
+    EXTRA_SWITCHES.forEach(function (key) {
+      $(key).checked = !!state.settings[key];
+      var sl = document.querySelector('.slider[data-extra="' + key + '"]');
+      if (sl) sl.classList.toggle('off', !state.settings[key]);
+    });
+    renderTrimAvailability();
     if (Presets.matching(presetStore.list(), state.settings) !== state.preset) state.preset = Presets.matching(presetStore.list(), state.settings);
     document.querySelectorAll('.preset[data-id]').forEach(function (b) {
       b.setAttribute('aria-checked', String(b.getAttribute('data-id') === state.preset));
@@ -583,6 +595,16 @@
       ' · ignores blips < ' + SLIDERS.minTalkSec(s.minTalkSec);
   }
 
+  function trimAllowed() { var o = state.settings.output; return o === 'fast' || o === 'fasthide'; }
+
+  function renderTrimAvailability() {
+    var ok = trimAllowed();
+    $('trimExtra').classList.toggle('unavailable', !ok);
+    $('trimDesc').textContent = ok
+      ? 'Removes long silences from every track, keeping a breath either side.'
+      : 'Fast cuts and Fast hide only: the other modes can’t ripple every track safely.';
+  }
+
   function renderOutputs() {
     var mc = !!(state.seq && state.seq.multicam);
     document.querySelectorAll('#outputs button').forEach(function (b) {
@@ -592,6 +614,7 @@
       b.title = b.disabled ? (o === 'multicam' ? 'Needs a multicam or nested sequence clip (Set up can make one)' : 'Not for multicam sequences: use Multicam or a Fast mode') : '';
     });
     $('outputDesc').textContent = OUTPUT_DESC[state.settings.output] || '';
+    renderTrimAvailability();
     var o2 = state.settings.output;
     $('apply').textContent = o2 === 'fast' || o2 === 'fasthide' ? '⚡ CUT IT!' : o2 === 'multicam' ? '🎛 SWITCH IT!' : 'CUT IT!';
   }
@@ -652,10 +675,17 @@
 
   var OUTPUT_LABEL = { fast: '⚡ Fast cuts', fasthide: '⚡ Fast hide', multicam: '🎛 Multicam', hide: '🐢 Classic' };
 
+  function dockExtras() {
+    var out = '';
+    if (state.settings.reactions && state.reactions && state.reactions.length) out += ' · 🎭 ' + state.reactions.length;
+    if (state.settings.trimSilence && deadAirSec() >= 1) out += ' · ✂️ −' + minutesSeconds(deadAirSec());
+    return out;
+  }
+
   function renderDock(cuts) {
     if (!state.seq) return;
     $('dockInfo').textContent = state.segments
-      ? OUTPUT_LABEL[state.settings.output] + ' · ' + cuts + ' cuts · ' + state.seq.name
+      ? OUTPUT_LABEL[state.settings.output] + ' · ' + cuts + ' cuts' + dockExtras() + ' · ' + state.seq.name
       : 'Ready to listen to ' + state.speakers.length + (state.speakers.length === 1 ? ' mic' : ' mics') + ' · ' + state.seq.name;
     var d = $('cutDelta');
     if (state.segments && state.lastCuts !== null && state.lastCuts !== cuts) {
@@ -688,6 +718,7 @@
       wrap.classList.remove('reveal'); void wrap.offsetWidth; wrap.classList.add('reveal');
     }
     renderWarnings();
+    renderExtrasSummary(reveal);
     $('legend').classList.toggle('animate', !!reveal);
     $('warnings').classList.toggle('animate', !!reveal);
     $('rulerMid').textContent = timecode(dur / 2);
@@ -712,6 +743,46 @@
     else $('programMeta').textContent = cuts + ' cuts!';
     renderDock(cuts);
     if (!state.busy) say((state.listenNote || '') + t('result', { cuts: cuts, avg: avg.toFixed(1) }), 'idle', !reveal);
+  }
+
+  function deadAirSec() {
+    return (trimAllowed() ? state.deadAir || [] : []).reduce(function (sum, r) { return sum + r.end - r.start; }, 0);
+  }
+
+  function renderExtrasSummary(reveal) {
+    var chips = [];
+    if (state.settings.reactions) chips.push('🎭 ' + state.reactions.length + (state.reactions.length === 1 ? ' reaction' : ' reactions'));
+    if (state.settings.trimSilence) {
+      chips.push(trimAllowed()
+        ? '✂️ ' + minutesSeconds(deadAirSec()) + ' dead air from ' + state.deadAir.length + (state.deadAir.length === 1 ? ' pause' : ' pauses')
+        : '✂️ trimming needs a Fast mode');
+    }
+    if (state.settings.highlights) chips.push('🔥 ' + state.highlights.length + ' best clips');
+    var box = $('extrasSummary');
+    box.hidden = !chips.length;
+    box.innerHTML = chips.map(function (c) { return '<span class="chip-note">' + escapeHtml(c) + '</span>'; }).join('');
+    box.classList.toggle('animate', !!reveal);
+
+    var clips = state.settings.highlights ? state.highlights : [];
+    $('clipsBox').hidden = !clips.length;
+    $('clips').innerHTML = clips.map(function (h, i) {
+      return '<li><button class="clip" data-i="' + i + '" title="Move the Premiere playhead here">' +
+        '<span class="clip-rank">' + (i + 1) + '</span>' +
+        '<span class="clip-time">' + timecode(h.start) + ' – ' + timecode(h.end) + '</span>' +
+        '<span class="clip-why">' + escapeHtml(h.reasons.join(' · ')) + '</span>' +
+        '<span class="clip-len">' + Math.round(h.end - h.start) + ' s</span></button></li>';
+    }).join('');
+    $('clips').querySelectorAll('.clip').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var h = clips[Number(b.getAttribute('data-i'))];
+        callHost('AC_setPlayhead', h.start).then(function () { toast('Playhead at ' + timecode(h.start)); }).catch(sayError);
+      });
+    });
+  }
+
+  function minutesSeconds(sec) {
+    sec = Math.round(sec);
+    return sec < 60 ? sec + ' s' : Math.floor(sec / 60) + ' min ' + (sec % 60 ? (sec % 60) + ' s' : '');
   }
 
   // Top: the cut (one colour per camera). Below: one thin lane per speaker showing
@@ -739,6 +810,24 @@
     ctx.fillStyle = 'rgba(59,42,85,0.3)';
     segments.forEach(function (s, i) {
       if (i) ctx.fillRect(Math.round((s.start / duration) * w), 0, 1, cutH);
+    });
+    // Best clips: a gold band along the top. Dead air being trimmed: dark hatching.
+    // Reaction shots: a small notch under the cut.
+    ctx.fillStyle = cssColor('var(--color-highlight)');
+    (state.settings.highlights ? state.highlights || [] : []).forEach(function (h) {
+      ctx.fillRect(Math.floor((h.start / duration) * w), 0, Math.max(2, Math.ceil(((h.end - h.start) / duration) * w)), 4);
+    });
+    if (state.settings.trimSilence && trimAllowed()) {
+      ctx.fillStyle = 'rgba(30,20,45,0.55)';
+      (state.deadAir || []).forEach(function (r) {
+        var x = Math.floor((r.start / duration) * w);
+        ctx.fillRect(x, 6, Math.max(1, Math.ceil(((r.end - r.start) / duration) * w)), cutH - 6);
+      });
+    }
+    ctx.fillStyle = cssColor('var(--color-ink-fixed)');
+    (state.settings.reactions ? state.reactions || [] : []).forEach(function (r) {
+      var x = Math.round((((r.start + r.end) / 2) / duration) * w);
+      ctx.beginPath(); ctx.moveTo(x - 3, cutH); ctx.lineTo(x + 3, cutH); ctx.lineTo(x, cutH - 5); ctx.closePath(); ctx.fill();
     });
     if (!lanes) return;
     ctx.fillStyle = dark ? 'rgba(185,163,255,0.35)' : 'rgba(143,113,242,0.35)';
@@ -775,7 +864,10 @@
       if (!state.segments) return;
       var p = secAt(e);
       var seg = segmentAt(p.sec);
-      tip.textContent = timecode(p.sec) + ' · ' + (seg ? camLabel(seg.cam) : '');
+      var extra = '';
+      if (seg && seg.reaction) extra = ' · 🎭 reaction';
+      if (state.settings.trimSilence && trimAllowed() && (state.deadAir || []).some(function (r) { return p.sec >= r.start && p.sec < r.end; })) extra = ' · ✂️ trimmed';
+      tip.textContent = timecode(p.sec) + ' · ' + (seg ? camLabel(seg.cam) : '') + extra;
       tip.hidden = false;
       tip.style.left = Math.max(0, Math.min(p.w - tip.offsetWidth, p.x - tip.offsetWidth / 2)) + 'px';
     });
@@ -896,9 +988,20 @@
     var order = [];
     if (state.wideCam >= 0) order.push(state.wideCam);
     state.speakers.forEach(function (sp) { if (order.indexOf(sp.video) < 0) order.push(sp.video); });
+    var speakerCams = state.speakers.map(function (sp) { return sp.video; });
+    state.reactions = [];
+    if (state.settings.reactions) {
+      var r = Engine.addReactions(segs, state.speech, Object.assign({}, opts, {
+        speakerCams: speakerCams, wideCam: state.wideCam >= 0 ? state.wideCam : null
+      }));
+      segs = r.segments;
+      state.reactions = r.reactions;
+    }
     var safe = Engine.avoidEmpty(segs, coverage(), order);
     state.patchedGaps = safe.length !== segs.length || safe.some(function (x, i) { return !segs[i] || x.cam !== segs[i].cam; });
     state.segments = safe;
+    state.deadAir = state.settings.trimSilence ? Engine.findDeadAir(state.speech, { minSec: state.settings.trimMinSec, padSec: 0.4 }) : [];
+    state.highlights = state.settings.highlights ? Engine.findHighlights(state.speech, { count: 5 }) : [];
   }
 
   function recompute() {
@@ -952,7 +1055,7 @@
         state.lastCuts = null;
         setFolded(true);
         renderProgram(true);
-        setTimeout(function () { document.querySelector('#cutPane .sticker:last-child').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
+        setTimeout(function () { document.querySelector('#cutPane .sticker:last-of-type').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
       })
       .catch(function (err) {
         $('meters').hidden = true;
@@ -982,6 +1085,10 @@
     var seq = state.seq;
     var frames = Engine.snapToFrames(state.segments, seq.fps);
     var cuts = Math.max(0, frames.length - 1);
+    var trim = (output === 'fast' || output === 'fasthide') && state.settings.trimSilence ? state.deadAir.map(function (r) {
+      return { startFrame: Math.round(r.start * seq.fps), endFrame: Math.round(r.end * seq.fps) };
+    }).filter(function (r) { return r.endFrame > r.startFrame; }) : [];
+    var highlights = state.settings.highlights ? state.highlights.slice() : [];
     var newName = seq.name + ' – Arrow Switch';
     setBusy(true);
     say(t(output === 'fast' ? 'fastCutting' : 'cutting', { cuts: cuts }), 'cut');
@@ -994,7 +1101,7 @@
       if (output === 'multicam') {
         run = multicamCut(frames, newName, secs);
       } else if (output === 'fast' || output === 'fasthide') {
-        run = fastCut(frames, newName, output === 'fasthide' ? 'disable' : 'cut').then(function (res) {
+        run = fastCut(frames, newName, output === 'fasthide' ? 'disable' : 'cut', trim).then(function (res) {
           return { id: res.sequenceId, name: res.name, msg: t(output === 'fasthide' ? 'fastHideDone' : 'fastDone', { name: escapeHtml(res.name), secs: secs() }) };
         });
       } else {
@@ -1006,6 +1113,13 @@
         });
       }
       run.then(function (out) {
+        if (!out.id || !highlights.length) return out;
+        return addClipMarkers(out.id, highlights, trim, seq.fps).then(function (n) {
+          if (n) out.msg += ' ' + t('clipsMarked', { count: n });
+          return out;
+        }, function () { return out; });
+      }).then(function (out) {
+        if (trim.length) out.msg += ' ' + t('trimmed', { time: minutesSeconds(trim.reduce(function (sum, r) { return sum + r.endFrame - r.startFrame; }, 0) / seq.fps) });
         say(out.msg, 'done');
         confetti();
         if (out.id) {
@@ -1063,7 +1177,22 @@
 
   // Export -> rebuild in JS (real cuts, or every angle kept with the unused parts disabled)
   // -> import. One import instead of thousands of razors.
-  function fastCut(frames, newName, mode) {
+  // Best clips become markers on the new sequence, shifted past any dead air that was trimmed.
+  function addClipMarkers(sequenceId, highlights, trim, fps) {
+    var shift = function (sec) {
+      var f = Math.round(sec * fps);
+      return (Xml && Xml.mapFrame ? Xml.mapFrame(f, trim) : f) / fps;
+    };
+    var markers = highlights.map(function (h, i) {
+      return {
+        startSec: shift(h.start), endSec: shift(h.end), color: 3,
+        name: '🔥 Best clip ' + (i + 1), comment: h.reasons.join(', ')
+      };
+    });
+    return callHost('AC_addMarkers', JSON.stringify({ sequenceId: sequenceId, markers: markers })).then(function (r) { return r.added; });
+  }
+
+  function fastCut(frames, newName, mode, trim) {
     var seq = state.seq, mc = seq.multicam;
     var sequenceId = mc ? mc.sourceId : seq.id;
     var shift = 0;
@@ -1072,6 +1201,7 @@
       shift = Math.round((mc.pieces[0].inPoint - mc.pieces[0].start) * seq.fps);
     }
     var segments = frames.map(function (s) { return { startFrame: s.startFrame + shift, endFrame: s.endFrame + shift, cam: s.cam }; });
+    var removeRanges = (trim || []).map(function (r) { return { startFrame: r.startFrame + shift, endFrame: r.endFrame + shift }; });
     if (!IN_PREMIERE) return callHost('AC_importXml', JSON.stringify({ name: newName }));
     if (!Xml) return Promise.reject(new Error('The XML module is missing. Reinstall Arrow Switch.'));
     var fs = nodeRequire('fs'), path = nodeRequire('path'), os = nodeRequire('os');
@@ -1081,7 +1211,7 @@
     var src = path.join(dir, 'source-' + stamp + '.xml');
     var out = path.join(dir, newName.replace(/[\\/:*?"<>|]/g, '-') + '.xml');
     return callHost('AC_exportXml', JSON.stringify({ sequenceId: sequenceId, path: src })).then(function () {
-      var rebuilt = Xml.rebuild(fs.readFileSync(src, 'utf8'), { segments: segments, camTracks: involvedTracks(frames), newName: newName, mode: mode });
+      var rebuilt = Xml.rebuild(fs.readFileSync(src, 'utf8'), { segments: segments, camTracks: involvedTracks(frames), newName: newName, mode: mode, removeRanges: removeRanges });
       fs.writeFileSync(out, rebuilt.xml);
       return callHost('AC_importXml', JSON.stringify({ path: out, name: newName }));
     });
@@ -1542,6 +1672,14 @@
         scheduleRecompute();
       });
     });
+    EXTRA_SWITCHES.forEach(function (key) {
+      $(key).addEventListener('change', function () {
+        state.settings[key] = $(key).checked;
+        renderSettings();
+        saveSettings();
+        scheduleRecompute();
+      });
+    });
     $('overlapToWide').addEventListener('change', function () {
       state.settings.overlapToWide = $('overlapToWide').checked;
       renderSettings();
@@ -1555,6 +1693,7 @@
         state.settings.output = b.getAttribute('data-output');
         renderOutputs();
         saveSettings();
+        if (state.segments) renderProgram();
       });
     });
 
@@ -1638,6 +1777,7 @@
     AC_openSequence: function () { return { ok: true, name: 'EP 142' }; },
     AC_deleteSequence: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
     AC_setPlayhead: function () { return { ok: true }; },
+    AC_addMarkers: function (p) { return { ok: true, added: JSON.parse(p).markers.length }; },
     AC_getProjectSelection: function () { return { ok: true, files: [] }; },
     AC_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Chloe x Grace', misplaced: [] }; },
     fakeFiles: function () {

@@ -643,6 +643,32 @@ function AC_fingerprint(seq, trackIndexes) {
   return parts.join('|');
 }
 
+// Sequence markers (best clips). Markers Arrow Switch added before are replaced, not doubled.
+function AC_addMarkers(payloadJson) {
+  return AC_run(function () {
+    var p = AC_parse(payloadJson);
+    var seq = AC_sequenceById(p.sequenceId);
+    if (!seq) return { ok: false, error: 'Could not find the new sequence to mark.' };
+    var old = [], m = seq.markers.getFirstMarker();
+    while (m) {
+      if (String(m.comments || '').indexOf('[Arrow Switch]') >= 0) old.push(m);
+      m = seq.markers.getNextMarker(m);
+    }
+    for (var o = 0; o < old.length; o++) seq.markers.deleteMarker(old[o]);
+    var added = 0;
+    for (var i = 0; i < p.markers.length; i++) {
+      var d = p.markers[i];
+      var mk = seq.markers.createMarker(d.startSec);
+      mk.name = d.name;
+      mk.comments = d.comment + ' [Arrow Switch]';
+      mk.end = d.endSec;
+      try { mk.setColorByIndex(d.color); } catch (e) { /* older Premiere */ }
+      added++;
+    }
+    return { ok: true, added: added };
+  });
+}
+
 function AC_setPlayhead(seconds) {
   return AC_run(function () {
     var seq = app.project.activeSequence;

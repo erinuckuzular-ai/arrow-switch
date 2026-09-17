@@ -14,7 +14,8 @@
   'use strict';
 
   // Everything a preset remembers.
-  var KEYS = ['sensitivityDb', 'minTalkSec', 'minShotSec', 'maxShotSec', 'wideShotSec', 'leadInSec', 'overlapToWide', 'output'];
+  var KEYS = ['sensitivityDb', 'minTalkSec', 'minShotSec', 'maxShotSec', 'wideShotSec', 'leadInSec', 'overlapToWide', 'output',
+    'reactions', 'reactionEverySec', 'trimSilence', 'trimMinSec', 'highlights'];
 
   var BUILTIN = [
     { id: 'sleepy', name: 'Sleepy', blurb: 'long shots', builtin: true,
