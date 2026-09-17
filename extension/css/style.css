@@ -335,6 +335,11 @@ body[data-theme="dark"] .floor { background-color: rgba(120, 90, 200, 0.12); }
 .big:disabled { background: var(--clay-2); color: var(--ink-soft); text-shadow: none; transform: none; box-shadow: inset 4px 5px 10px rgba(var(--shade), 0.24); cursor: wait; }
 .big.go { background: linear-gradient(160deg, #3fc08a, #1f8a5c); box-shadow: 8px 12px 22px rgba(40, 150, 110, 0.35), inset -5px -7px 12px rgba(20, 110, 80, 0.3), inset 5px 6px 12px rgba(255, 255, 255, 0.45); }
 .big.go-violet { background: linear-gradient(160deg, #a58bff, #6f4fe0); box-shadow: 8px 12px 22px rgba(111, 79, 224, 0.35), inset -5px -7px 12px rgba(60, 30, 140, 0.3), inset 5px 6px 12px rgba(255, 255, 255, 0.45); }
+.big.go:disabled, .big.go-violet:disabled {
+  background: var(--clay-2); color: var(--ink-soft); text-shadow: none; transform: none;
+  box-shadow: inset 4px 5px 10px rgba(var(--shade), 0.24), inset -4px -4px 8px rgba(var(--hi), var(--hi-a));
+}
+.big.busy-label { font-size: 20px; }
 .big.ready { animation: nudge 2.4s ease-in-out infinite; }
 @keyframes nudge { 0%, 88%, 100% { transform: none; } 92% { transform: rotate(-1.5deg) scale(1.02); } 96% { transform: rotate(1.5deg) scale(1.02); } }
 
