@@ -25,7 +25,7 @@ const ffmpeg = A.findFfmpeg(path.join(__dirname, '..', '..', 'extension'));
 if (!ffmpeg) { console.error('ffmpeg not found'); process.exit(1); }
 
 const WINDOW = E.DEFAULTS.windowSec;
-const BALANCED = { sensitivityDb: 10, minShotSec: 2.5, maxShotSec: 0, wideShotSec: 3, leadInSec: 0.2 };
+const BALANCED = { sensitivityDb: 10, minShotSec: 2.5, maxShotSec: 0, wideShotSec: 3, leadInSec: 0.2, overlapToWide: process.env.NO_WIDE ? false : true };
 
 async function levelsFor(tracks, totalWindows, cacheDir) {
   if (A.analyzeTracks) {
@@ -111,6 +111,19 @@ function score(segments, truth, durationSec) {
   };
 }
 
+function segShare(segs, dur) {
+  const t = {};
+  for (const x of segs) t[x.cam] = (t[x.cam] || 0) + x.end - x.start;
+  return Object.keys(t).sort().map((k) => k + ':' + Math.round((t[k] / dur) * 100)).join(' ');
+}
+
+function truthShare(truth) {
+  const t = {};
+  let total = 0;
+  for (const x of truth) { const k = x.who === 'wide' ? 0 : x.who + 1; t[k] = (t[k] || 0) + x.end - x.start; total += x.end - x.start; }
+  return Object.keys(t).sort().map((k) => k + ':' + Math.round((t[k] / total) * 100)).join(' ');
+}
+
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arrow-switch-bench-'));
   const only = process.env.SCENARIO;
@@ -143,6 +156,8 @@ async function main() {
         'on-shot': (s.onShot * 100).toFixed(1) + '%',
         'wrong shots': s.wrong + '/' + s.shots,
         missed: s.missed + '/' + s.turns,
+        'screen %': segShare(segs, sc.durationSec),
+        'true %': truthShare(sc.truth),
         'cut error': s.cutErr.toFixed(2) + ' s',
         listen: listenMs + ' ms',
         'listen again': againMs + ' ms',
