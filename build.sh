@@ -59,7 +59,7 @@ mkdir -p "$STAGE/bin"
 cp "$CACHE/ffmpeg" "$STAGE/bin/ffmpeg"
 if [ -n "${APP_SIGN_ID:-}" ]; then
   codesign --force --options runtime --timestamp --sign "$APP_SIGN_ID" "$STAGE/bin/ffmpeg"
-else
+elif ! codesign -v "$STAGE/bin/ffmpeg" 2>/dev/null; then
   codesign --force --sign - "$STAGE/bin/ffmpeg"   # ad-hoc; Apple Silicon refuses unsigned binaries
 fi
 
