@@ -369,9 +369,99 @@
     }).then(function (res) { return res.levels[0]; });
   }
 
+  // ---------------------------------------------------------------- whole files (sync)
+
+  // Length of the file in seconds from ffmpeg's "Duration: HH:MM:SS.xx" line, or 0 if unknown.
+  function probeDuration(ffmpeg, mediaPath) {
+    return new Promise(function (resolve) {
+      var p = childProcess.spawn(ffmpeg, ['-hide_banner', '-nostdin', '-i', mediaPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+      var err = '';
+      p.stderr.on('data', function (d) { err += d.toString(); });
+      p.on('error', function () { resolve(0); });
+      p.on('close', function () {
+        var m = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(err);
+        resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0);
+      });
+    });
+  }
+
+  /*
+   * Like clipLevels, but for a whole file whose length isn't known up front.
+   * Resolves a Float32Array sized to exactly the windows decoded.
+   * opts: { channel, job, onProgress(seconds) }
+   */
+  function fileLevels(ffmpeg, mediaPath, windowSec, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve, reject) {
+      if (opts.job && opts.job.cancelled) return reject(cancelledError());
+      var samplesPerWindow = Math.round(SAMPLE_RATE * windowSec);
+      // Start at ~10 minutes and double: a 24 h preallocation would be ~35 MB per file.
+      var levels = new Float32Array(Math.ceil(600 / windowSec));
+
+      var pick = opts.channel == null ? 'aformat=channel_layouts=mono' : 'pan=mono|c0=c' + opts.channel;
+      var args = [
+        '-hide_banner', '-nostdin', '-loglevel', 'error',
+        '-i', mediaPath,
+        '-vn', '-sn', '-dn',
+        '-af', pick + ',' + SPEECH_FILTER,
+        '-f', 's16le', '-acodec', 'pcm_s16le', 'pipe:1'
+      ];
+      var proc = childProcess.spawn(ffmpeg, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      if (opts.job) opts.job.track(proc);
+
+      var carry = null, sumSq = 0, count = 0, windowIdx = 0, stderr = '';
+      var reported = 0;
+      var invScale = 1 / (32768 * 32768);
+
+      function flushWindow() {
+        if (windowIdx >= levels.length) {
+          var bigger = new Float32Array(levels.length * 2);
+          bigger.set(levels);
+          levels = bigger;
+        }
+        var ms = (sumSq / count) * invScale;
+        levels[windowIdx++] = ms > 0 ? Math.max(SILENT_DB, 10 * Math.log10(ms)) : SILENT_DB;
+        sumSq = 0;
+        count = 0;
+      }
+
+      proc.stdout.on('data', function (chunk) {
+        if (carry) { chunk = Buffer.concat([carry, chunk]); carry = null; }
+        var n = chunk.length >> 1;
+        var samples = (chunk.byteOffset % 2 === 0)
+          ? new Int16Array(chunk.buffer, chunk.byteOffset, n)
+          : new Int16Array(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + n * 2));
+        for (var i = 0; i < n; i++) {
+          var v = samples[i];
+          sumSq += v * v;
+          if (++count === samplesPerWindow) flushWindow();
+        }
+        if (n * 2 < chunk.length) carry = Buffer.from(chunk.slice(n * 2));
+        if (opts.onProgress) {
+          var sec = windowIdx * windowSec;
+          if (sec - reported >= 5) { opts.onProgress(sec - reported); reported = sec; }
+        }
+      });
+      proc.stderr.on('data', function (d) { stderr += d.toString(); });
+      proc.on('error', reject);
+      proc.on('close', function (code) {
+        if (opts.job && opts.job.cancelled) return reject(cancelledError());
+        if (count > 0) flushWindow();
+        if (opts.onProgress) opts.onProgress(Math.max(0, windowIdx * windowSec - reported));
+        if (code !== 0 && windowIdx === 0) {
+          reject(new Error('ffmpeg could not read ' + path.basename(mediaPath) + ': ' + stderr.trim().split('\n').pop()));
+        } else {
+          resolve(levels.slice(0, windowIdx));
+        }
+      });
+    });
+  }
+
   return {
     findFfmpeg: findFfmpeg,
     clipLevels: clipLevels,
+    fileLevels: fileLevels,
+    probeDuration: probeDuration,
     trackLevels: trackLevels,
     analyzeTracks: analyzeTracks,
     createJob: createJob,
