@@ -62,18 +62,25 @@ Output: `dist/Arrow-Switch-<version>.dmg`. The first run downloads a static
 universal ffmpeg and Adobe's ZXPSignCmd into `.cache/`, and creates a
 self-signed ZXP certificate in `certs/` (keep it; reuse it for updates).
 
-### Distributing without Gatekeeper warnings
+### Signing and notarization (no "malware" warning)
 
-Unsigned installers make macOS say the developer can't be verified (users can
-right-click → Open). To remove that you need an Apple Developer account:
+Unsigned installers make macOS say it can't verify the app is free of malware. Signing
+with Apple Developer ID certificates and notarizing removes that. One-time setup:
 
-```bash
-xcrun notarytool store-credentials arrow-switch-notary --apple-id you@example.com --team-id TEAMID
-INSTALLER_SIGN_ID="Developer ID Installer: Your Name (TEAMID)" \
-APP_SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
-NOTARY_PROFILE=arrow-switch-notary \
-./build.sh
-```
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/enroll/) ($99/year).
+2. Create both certificates on this Mac: Xcode → Settings → Accounts → your team →
+   Manage Certificates → **+** → **Developer ID Application**, then again for
+   **Developer ID Installer**. (Only the team's Account Holder can create these.)
+3. Make an app-specific password at [account.apple.com](https://account.apple.com) → Sign-In and Security →
+   App-Specific Passwords, then save the notary credentials in the keychain:
+
+   ```bash
+   xcrun notarytool store-credentials arrow-switch-notary --apple-id you@example.com --team-id TEAMID
+   ```
+
+After that, `./build.sh` finds the certificates and profile by itself, signs ffmpeg,
+the installer and the DMG, sends them to Apple, staples the tickets and checks the result.
+Use `RELEASE=1 ./build.sh` for anything you publish: it stops if the DMG isn't notarized.
 
 ### Develop live inside Premiere
 
