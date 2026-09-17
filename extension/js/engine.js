@@ -11,8 +11,11 @@
  *     -> snapToFrames()   frame-accurate cut list for Premiere
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.AutoCutEngine = factory();
+  var api = factory();
+  // Premiere panels run with Node enabled, so `module` exists there too: set both.
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.AutoCutEngine = api;
+  else root.AutoCutEngine = api;
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 

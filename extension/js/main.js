@@ -367,8 +367,11 @@
       .then(function () {
         $('analyze').hidden = true;
         if (IN_PREMIERE) {
-          ffmpeg = Audio && Audio.findFfmpeg(extensionPath());
-          if (!ffmpeg) throw new Error('Audio decoder not found. Reinstall AutoCut.');
+          if (!Audio) throw new Error('Node.js is off for this panel, so I can’t read audio. Reinstall AutoCut and restart Premiere.');
+          var extPath = '';
+          try { extPath = extensionPath(); } catch (e) { /* fall back to the standard install folders */ }
+          ffmpeg = Audio.findFfmpeg(extPath);
+          if (!ffmpeg) throw new Error('I can’t find my audio decoder (looked in ' + (extPath || 'the install folder') + '/bin). Reinstall AutoCut.');
         }
         return callHost('AC_getAudioClips', JSON.stringify(needed));
       })

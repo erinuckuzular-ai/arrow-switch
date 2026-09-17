@@ -6,12 +6,13 @@
  * Runs in the panel's Node.js context (CEP --enable-nodejs) and in plain Node.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require);
-  else {
-    // Outside CEP (e.g. previewing the panel in a browser) there is no Node.
-    var nodeRequire = root.cep_node ? root.cep_node.require : root.require;
-    root.AutoCutAudio = nodeRequire ? factory(nodeRequire) : null;
-  }
+  var nodeRequire =
+    (root.cep_node && root.cep_node.require) ||
+    (typeof require === 'function' ? require : null);
+  var api = nodeRequire ? factory(nodeRequire) : null;   // null when previewed in a plain browser
+  // Premiere panels run with Node enabled, so `module` exists there too: set both.
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.AutoCutAudio = api;
 })(typeof self !== 'undefined' ? self : this, function (req) {
   'use strict';
 
@@ -23,8 +24,14 @@
   var SILENT_DB = -120;
 
   function findFfmpeg(extensionPath) {
+    var exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    var home = process.env.HOME || process.env.USERPROFILE || '';
     var candidates = [
-      extensionPath && path.join(extensionPath, 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+      extensionPath && path.join(extensionPath, 'bin', exe),
+      '/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg',
+      home && path.join(home, 'Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg'),
+      process.env.APPDATA && path.join(process.env.APPDATA, 'Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg.exe'),
+      process.env.ProgramFiles && path.join(process.env['ProgramFiles(x86)'] || process.env.ProgramFiles, 'Common Files/Adobe/CEP/extensions/com.arrow.autocut/bin/ffmpeg.exe'),
       '/opt/homebrew/bin/ffmpeg',
       '/usr/local/bin/ffmpeg',
       '/usr/bin/ffmpeg'
