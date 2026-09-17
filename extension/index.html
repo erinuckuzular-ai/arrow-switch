@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arrow AutoCut</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="hero">
+    <svg id="mascot" class="mascot mood-idle" viewBox="0 0 120 132" aria-hidden="true">
+      <g class="sparkles only-done">
+        <path d="M10 22 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4z" />
+        <path d="M100 8 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3z" />
+        <path d="M106 70 l2 -5 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2z" />
+      </g>
+      <g class="body">
+        <path class="stand" d="M60 96 V118" />
+        <ellipse class="base" cx="60" cy="122" rx="24" ry="6" />
+        <path class="arm not-done" d="M31 66 Q16 74 20 92" />
+        <path class="arm not-done" d="M89 66 Q104 74 100 92" />
+        <path class="arm only-done" d="M31 60 Q14 50 12 32" />
+        <path class="arm only-done" d="M89 60 Q106 50 108 32" />
+        <g class="head">
+          <rect class="skin" x="30" y="12" width="60" height="86" rx="30" />
+          <path class="grille" d="M34 66 H86" />
+          <path class="grille" d="M36 76 H84" />
+          <path class="grille" d="M42 86 H78" />
+          <g class="eyes not-error">
+            <circle class="eye" cx="47" cy="38" r="11" />
+            <circle class="eye" cx="73" cy="38" r="11" />
+            <g class="pupils">
+              <circle cx="49" cy="40" r="5" />
+              <circle cx="75" cy="40" r="5" />
+            </g>
+          </g>
+          <g class="xeyes only-error">
+            <path d="M40 31 l14 14 M54 31 l-14 14" />
+            <path d="M66 31 l14 14 M80 31 l-14 14" />
+          </g>
+          <path class="mouth only-idle" d="M50 55 Q60 62 70 55" />
+          <ellipse class="mouth fill only-listen" cx="60" cy="57" rx="5" ry="6" />
+          <path class="mouth only-cut" d="M48 57 H72 M52 53 V61 M60 53 V61 M68 53 V61" />
+          <path class="mouth fill only-done" d="M46 52 Q60 70 74 52 Z" />
+          <path class="mouth only-error" d="M46 58 q4 -5 8 0 t8 0 t8 0" />
+          <path class="sweat only-cut" d="M92 22 q5 8 0 11 q-5 -3 0 -11z" />
+        </g>
+        <g class="headphones only-listen">
+          <path d="M24 44 Q24 0 60 0 Q96 0 96 44" />
+          <rect x="16" y="36" width="14" height="24" rx="6" />
+          <rect x="90" y="36" width="14" height="24" rx="6" />
+        </g>
+      </g>
+    </svg>
+    <div class="bubble">
+      <p id="status" role="status" aria-live="polite">Hi! Open a podcast sequence and I’ll cut it for you.</p>
+      <button id="refresh" class="seq" title="Reload the active sequence"><span id="seqLabel">No sequence</span> ↻</button>
+    </div>
+  </header>
+
+  <!-- No sequence open -->
+  <section id="empty" class="sticker">
+    <h2>First, set up your sequence like this</h2>
+    <ul class="stack" aria-label="Example track layout">
+      <li class="c3"><b>V3</b> Guest camera</li>
+      <li class="c2"><b>V2</b> Host camera</li>
+      <li class="c0"><b>V1</b> Wide shot</li>
+      <li class="gap" aria-hidden="true"></li>
+      <li class="c2 mic"><b>A1</b> Host mic</li>
+      <li class="c3 mic"><b>A2</b> Guest mic</li>
+    </ul>
+    <button id="load" class="big">Use this sequence</button>
+  </section>
+
+  <main id="app" hidden>
+    <section class="sticker">
+      <h2><span class="num">1</span> Who’s on which camera?</h2>
+      <span id="autoTag" class="scribble" hidden>I guessed these!</span>
+      <div id="speakers"></div>
+      <div class="wide-row">
+        <span class="wide-label">Wide shot</span>
+        <select id="wideCam" aria-label="Wide shot camera"></select>
+      </div>
+      <button id="addSpeaker" class="dashed">+ another person</button>
+    </section>
+
+    <section class="sticker">
+      <h2><span class="num">2</span> How cutty?</h2>
+      <div class="pace" role="radiogroup" aria-label="Cut pacing">
+        <button data-vibe="chill" role="radio"><b>Sleepy</b><small>long shots</small></button>
+        <button data-vibe="balanced" role="radio"><b>Chatty</b><small>follows talk</small></button>
+        <button data-vibe="hype" role="radio"><b>Chaotic</b><small>snip snip</small></button>
+      </div>
+      <p id="pacingDesc" class="desc"></p>
+      <details class="knobs">
+        <summary>Nerd knobs</summary>
+        <label class="slider"><span>Mic sensitivity</span><output data-for="sensitivityDb"></output>
+          <input type="range" id="sensitivityDb" min="4" max="24" step="1"></label>
+        <label class="slider"><span>Shortest shot</span><output data-for="minShotSec"></output>
+          <input type="range" id="minShotSec" min="0.5" max="8" step="0.5"></label>
+        <label class="slider"><span>Cut to wide after</span><output data-for="maxShotSec"></output>
+          <input type="range" id="maxShotSec" min="0" max="60" step="5"></label>
+        <label class="slider"><span>Wide shot length</span><output data-for="wideShotSec"></output>
+          <input type="range" id="wideShotSec" min="1" max="8" step="0.5"></label>
+        <label class="slider"><span>Cut before they talk</span><output data-for="leadInSec"></output>
+          <input type="range" id="leadInSec" min="0" max="1" step="0.05"></label>
+        <label class="check"><input type="checkbox" id="overlapToWide"> Talking over each other → wide shot</label>
+        <label class="check"><input type="checkbox" id="deleteUnused"> Delete unused angles (instead of hiding)</label>
+      </details>
+    </section>
+
+    <section class="sticker">
+      <h2><span class="num">3</span> Do the thing</h2>
+      <span id="programMeta" class="scribble"></span>
+
+      <div id="meters" class="meters" hidden></div>
+
+      <div id="result" hidden>
+        <canvas id="preview" height="40" aria-label="Camera cuts across the episode"></canvas>
+        <div class="ruler"><span>0:00:00</span><span id="rulerMid"></span><span id="rulerEnd"></span></div>
+        <p class="legend-title">Screen time</p>
+        <div id="legend" class="legend"></div>
+      </div>
+
+      <button id="analyze" class="big">LISTEN!</button>
+      <button id="apply" class="big go" hidden>CUT IT!</button>
+      <button id="reanalyze" class="link" hidden>listen again</button>
+    </section>
+  </main>
+
+  <script src="js/engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

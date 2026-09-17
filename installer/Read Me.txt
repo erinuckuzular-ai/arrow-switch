@@ -1,0 +1,27 @@
+ARROW AUTOCUT — automatic multicam podcast editing for Premiere Pro
+
+INSTALL (Mac)
+  1. Quit Premiere Pro.
+  2. Double-click "Install Arrow AutoCut.pkg" and follow the steps.
+  3. Open Premiere Pro > Window > Extensions > Arrow AutoCut.
+
+INSTALL (Windows)
+  Use "Arrow AutoCut.zxp" with a ZXP installer such as
+  aescripts ZXP Installer (https://aescripts.com/learn/zxp-installer/).
+  Note: on Windows, AutoCut needs ffmpeg.exe placed in the extension's bin folder.
+
+SET UP YOUR SEQUENCE
+  - Each camera angle on its own video track, all synced and stacked
+    (e.g. V1 = wide shot, V2 = host camera, V3 = guest camera).
+  - Each person's mic on its own audio track (A1 = host mic, A2 = guest mic).
+  - Use the raw audio files on those tracks, not nested/multicam clips.
+
+USE IT
+  1. Open the sequence, then AutoCut matches mics to cameras automatically.
+  2. Pick a vibe: Chill, Balanced or Hype.
+  3. Click "Listen to the podcast", check the preview, click "Build my edit".
+  AutoCut makes a copy called "<sequence> – AutoCut". Your original is never changed.
+  Unused angles are disabled, not deleted, so you can re-enable any shot by hand.
+
+UNINSTALL
+  Double-click "Uninstall Arrow AutoCut.command".

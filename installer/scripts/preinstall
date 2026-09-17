@@ -1,0 +1,4 @@
+#!/bin/bash
+# Remove any previous version so stale files don't linger.
+rm -rf "/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut"
+exit 0

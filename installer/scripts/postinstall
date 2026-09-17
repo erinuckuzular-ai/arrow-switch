@@ -1,0 +1,17 @@
+#!/bin/bash
+EXT="/Library/Application Support/Adobe/CEP/extensions/com.arrow.autocut"
+
+chmod -R a+rX "$EXT"
+chmod +x "$EXT/bin/ffmpeg" 2>/dev/null
+xattr -dr com.apple.quarantine "$EXT" 2>/dev/null
+
+# Unsigned development builds only load when CEP debug mode is on.
+if [ ! -f "$EXT/META-INF/signatures.xml" ]; then
+  CONSOLE_USER=$(stat -f%Su /dev/console)
+  if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    for v in 9 10 11 12 13; do
+      sudo -u "$CONSOLE_USER" defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1
+    done
+  fi
+fi
+exit 0
