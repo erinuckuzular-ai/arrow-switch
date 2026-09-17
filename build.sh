@@ -119,6 +119,8 @@ cat > "$BUILD/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
   <title>$NAME</title>
+  <background file="background.png" mime-type="image/png" scaling="proportional" alignment="bottomleft"/>
+  <background-darkAqua file="background-dark.png" mime-type="image/png" scaling="proportional" alignment="bottomleft"/>
   <welcome file="welcome.html" mime-type="text/html"/>
   <conclusion file="conclusion.html" mime-type="text/html"/>
   <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
@@ -132,9 +134,10 @@ EOF
 PKG="$BUILD/Install $NAME.pkg"
 SIGN_ARGS=()
 [ -n "${INSTALLER_SIGN_ID:-}" ] && SIGN_ARGS=(--sign "$INSTALLER_SIGN_ID")
+python3 "$ROOT/scripts/build-installer-pages.py" "$BUILD" >/dev/null
 productbuild \
   --distribution "$BUILD/distribution.xml" \
-  --resources "$ROOT/installer/resources" \
+  --resources "$BUILD/resources" \
   --package-path "$BUILD" \
   ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} \
   "$PKG"

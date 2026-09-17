@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Arrow Switch installer background</title>
+<!--
+  Rendered to installer/resources/background*.png by scripts/make-installer-art.sh.
+  The mascot is the panel's idle pose (extension/index.html), so the installer and
+  the panel look like the same thing.
+-->
+<style>
+  :root { --ink: #3b2a55; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    width: 620px; height: 418px; overflow: hidden;
+    background: linear-gradient(170deg, #c9b8ff 0%, #ffc9dd 52%, #ffe1c2 100%);
+    font-family: -apple-system, sans-serif;
+  }
+  body.dark { background: linear-gradient(170deg, #2b2047 0%, #3d2a5e 55%, #4a2f58 100%); --ink: #180f2a; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(46px); opacity: .55; }
+  .glow.a { width: 320px; height: 320px; left: -110px; top: -120px; background: #b49cff; }
+  .glow.b { width: 300px; height: 300px; right: -90px; bottom: -110px; background: #ff9ec9; }
+  body.dark .glow { opacity: .42; }
+  body.dark .glow.a { background: #7555c7; }
+  body.dark .glow.b { background: #b4508f; }
+  .ring { position: absolute; border: 2px solid rgba(59, 42, 85, .10); border-radius: 50%; }
+  body.dark .ring { border-color: rgba(255, 255, 255, .09); }
+  .r1 { width: 286px; height: 286px; left: 30px; top: 118px; }
+  .r2 { width: 392px; height: 392px; left: -22px; top: 66px; }
+  .mascot { position: absolute; left: 172px; bottom: 26px; transform: translateX(-50%); width: 210px; }
+  .mascot * { stroke-linecap: round; stroke-linejoin: round; }
+  .ball { fill: url(#gMetal); } .grille { fill: url(#pGrille); }
+  .gloss { fill: #fff; opacity: .7; }
+  .handle { fill: url(#gHandle); } .collar { fill: url(#gGold); }
+  .switch { fill: #2a1e3e; } .switch-dot { fill: #ff5f73; }
+  .cable, .arm { fill: none; stroke: var(--ink); }
+  .cable { stroke-width: 5; } .arm { stroke-width: 6; } .hand { fill: var(--ink); }
+  .eye { fill: #fff; stroke: var(--ink); stroke-width: 2.5; }
+  .pupils circle { fill: var(--ink); }
+  .lid { fill: none; stroke: var(--ink); stroke-width: 3; }
+  .brow { fill: none; stroke: var(--ink); stroke-width: 4; }
+  .mouth { fill: none; stroke: var(--ink); stroke-width: 3.5; }
+  .blush { fill: #ff8fb1; opacity: .75; }
+  .floor-shadow { fill: rgba(59, 42, 85, .26); }
+  .sparkle { fill: #ffe39a; }
+</style>
+<div class="glow a"></div><div class="glow b"></div>
+<div class="ring r1"></div><div class="ring r2"></div>
+<svg class="mascot" viewBox="-6 -10 132 150" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gMetal" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#d9dcea"/><stop offset="1" stop-color="#8f94ad"/></radialGradient>
+    <radialGradient id="gHandle" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#8b78b8"/><stop offset="1" stop-color="#3b2a55"/></radialGradient>
+    <radialGradient id="gGold" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff0b8"/><stop offset="1" stop-color="#f0a93b"/></radialGradient>
+    <pattern id="pGrille" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="none"/><path d="M0 0 H6 M0 0 V6" stroke="#5b5f78" stroke-width="1.1" opacity=".55"/>
+    </pattern>
+  </defs>
+  <g class="sparkles">
+    <path class="sparkle" d="M2 30 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4z"/>
+    <path class="sparkle" d="M108 2 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3z"/>
+  </g>
+  <path class="cable" d="M60 120 C58 134 86 138 96 126 S118 118 116 132"/>
+  <g><path class="arm" d="M42 76 Q24 66 20 48"/><circle class="hand" cx="19" cy="45" r="6"/></g>
+  <path class="arm" d="M78 76 Q96 84 98 98"/><circle class="hand" cx="98" cy="100" r="5"/>
+  <ellipse class="floor-shadow" cx="60" cy="136" rx="30" ry="5"/>
+  <path class="handle" d="M44 72 L50 118 Q60 126 70 118 L76 72 Z"/>
+  <rect class="switch" x="55" y="90" width="10" height="14" rx="4"/>
+  <circle class="switch-dot" cx="60" cy="94" r="2.4"/>
+  <rect class="collar" x="38" y="62" width="44" height="14" rx="7"/>
+  <g class="head">
+    <circle class="ball" cx="60" cy="34" r="32"/>
+    <circle class="grille" cx="60" cy="34" r="32"/>
+    <ellipse class="gloss" cx="46" cy="16" rx="10" ry="5" transform="rotate(-30 46 16)"/>
+    <ellipse class="blush" cx="38" cy="44" rx="6" ry="3.5"/>
+    <ellipse class="blush" cx="82" cy="44" rx="6" ry="3.5"/>
+    <ellipse class="eye" cx="48" cy="32" rx="8" ry="9"/>
+    <ellipse class="eye" cx="72" cy="32" rx="8" ry="9"/>
+    <g class="pupils"><circle cx="50" cy="34" r="4"/><circle cx="74" cy="34" r="4"/></g>
+    <path class="lid" d="M39 29 Q48 22 57 29 M63 29 Q72 22 81 29"/>
+    <path class="brow" d="M38 18 L56 23 M82 18 L64 23"/>
+    <path class="mouth" d="M50 50 Q62 56 72 46"/>
+  </g>
+</svg>
+<script>
+  if (location.search.indexOf('dark') !== -1) document.body.classList.add('dark');
+</script>
