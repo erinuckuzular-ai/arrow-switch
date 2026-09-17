@@ -280,9 +280,10 @@
     var minRun = Math.round(o.minTalkSec / o.windowSec);
     // Short bursts (laughs, "no way", "mm") never move the main edit, but they're exactly
     // what reaction shots want, so remember them before they're cleaned away.
-    var bursts = [];
+    var bursts = [], heard = new Uint8Array(n);
     for (var e0 = 0; e0 < S; e0++) {
       cleanMask(masks[e0], gap, 0);
+      for (var h0 = 0; h0 < n; h0++) if (masks[e0][h0]) heard[h0] = 1;
       bursts.push([]);
       for (var b0 = 0; b0 < n;) {
         if (!masks[e0][b0]) { b0++; continue; }
@@ -325,7 +326,11 @@
       var top0 = -60;
       for (var q1 = 0; q1 < S; q1++) top0 = Math.max(top0, sm[q1][q0] - stats[q1].speech);
       energy[q0] = top0;
-      quiet[q0] = strength[q0] < 0 && !active[q0].length ? 1 : 0;
+      // Dead air means nothing at all: not even a "yeah" that was too short to cut to.
+      // Raw levels too: smoothing can hide choppy speech.
+      var loud = strength[q0] >= 0 || heard[q0] || active[q0].length;
+      for (var q2 = 0; q2 < S && !loud; q2++) if (trackLevels[q2][q0] >= stats[q2].threshold) loud = true;
+      quiet[q0] = loud ? 0 : 1;
     }
 
     return { active: active, talking: masks, stats: stats, similar: similar, bursts: bursts, energy: energy, quiet: quiet, windowSec: o.windowSec };
@@ -546,20 +551,21 @@
   /*
    * Reaction shots: while one person holds the floor, briefly cut to a listener who laughs or
    * reacts, then back. speech = detectSpeech() result; segments = the edit so far.
-   * cfg: { speakerCams, wideCam, reactionEverySec (min gap between reactions, default 20),
+   * cfg: { speakerCams, wideCam, reactionEverySec (min gap between reactions, default 40),
    *        reactionSec (shot length, default 1.4), minShotSec }
    * Returns { segments, reactions: [{ start, end, speaker, cam }] }.
    */
   function addReactions(segments, speech, cfg) {
-    var every = cfg.reactionEverySec || 20, len = cfg.reactionSec || 1.4;
+    var every = cfg.reactionEverySec || 40, len = cfg.reactionSec || 1.4;
     var guard = Math.max(1.5, (cfg.minShotSec || 2.5) * 0.6);
     var cams = cfg.speakerCams || [], W = speech.windowSec;
     var candidates = [];
     speech.bursts.forEach(function (list, sp) {
       list.forEach(function (b) {
         var dur = b.end - b.start;
-        if (dur < 0.25 || dur > 1.6 || b.peakDb < -9) return;
-        candidates.push({ speaker: sp, start: b.start, end: b.end, score: b.peakDb + dur * 4 });
+        // Tiny blips (a breath, a lip smack, the tail of their own sentence) aren't reactions.
+        if (dur < 0.35 || dur > 1.6 || b.peakDb < -3) return;
+        candidates.push({ speaker: sp, start: b.start, end: b.end, score: b.peakDb + dur * 6 });
       });
     });
     // Strongest reactions first, then keep the ones that fit the spacing rules.

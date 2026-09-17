@@ -92,7 +92,7 @@
   var $ = function (id) { return document.getElementById(id); };
 
   // Extras and their defaults. Reaction shots and trimming change the edit, so they start off.
-  var EXTRAS = { reactions: false, reactionEverySec: 24, trimSilence: false, trimMinSec: 2.5, highlights: true };
+  var EXTRAS = { reactions: false, reactionEverySec: 40, trimSilence: false, trimMinSec: 2.5, highlights: true };
   var EXTRA_SWITCHES = ['reactions', 'trimSilence', 'highlights'];
 
   var ui = { theme: 'auto', tone: 'mean', tab: 'cut' };
@@ -235,6 +235,7 @@
     var qTheme = (QUERY.match(/theme=(\w+)/) || [])[1], qTone = (QUERY.match(/tone=(\w+)/) || [])[1];
     if (qTheme) ui.theme = qTheme;
     if (qTone) ui.tone = qTone;
+    if (/extras=1/.test(QUERY)) Object.assign(state.settings, { reactions: true, trimSilence: true, highlights: true });
   }
 
   function saveSettings() { storageSet(STORE_KEY, JSON.stringify({ v: 2, settings: state.settings, preset: state.preset })); }
@@ -751,10 +752,11 @@
 
   function renderExtrasSummary(reveal) {
     var chips = [];
-    if (state.settings.reactions) chips.push('🎭 ' + state.reactions.length + (state.reactions.length === 1 ? ' reaction' : ' reactions'));
+    var nr = state.reactions.length, nd = state.deadAir.length;
+    if (state.settings.reactions) chips.push(nr ? '🎭 ' + nr + (nr === 1 ? ' reaction shot' : ' reaction shots') : '🎭 no reactions spotted');
     if (state.settings.trimSilence) {
       chips.push(trimAllowed()
-        ? '✂️ ' + minutesSeconds(deadAirSec()) + ' dead air from ' + state.deadAir.length + (state.deadAir.length === 1 ? ' pause' : ' pauses')
+        ? (nd ? '✂️ −' + minutesSeconds(deadAirSec()) + ' from ' + nd + (nd === 1 ? ' pause' : ' pauses') : '✂️ no long pauses')
         : '✂️ trimming needs a Fast mode');
     }
     if (state.settings.highlights) chips.push('🔥 ' + state.highlights.length + ' best clips');

@@ -40,7 +40,7 @@ function writeScript(opts) {
   };
   const sp = opts.speakers;
   const vocal = sp.map(() => []);
-  const floor = [];
+  const floor = [], pauses = [];
   let t = 1;
   let who = 0;
 
@@ -91,10 +91,16 @@ function writeScript(opts) {
     const next = pick(sp.map((s) => s.weight), who);
     // Hand-over: a gap, or the next person starting just before this one finishes.
     t = r() < opts.overlapRate ? end - (0.2 + r() * 0.8) : end + 0.15 + r() * 0.9;
+    // Optional long silences (someone checking notes), for the dead-air trimmer.
+    if (opts.longPauseEverySec && r() < len / opts.longPauseEverySec) {
+      const gap = 3 + r() * 4;
+      pauses.push({ start: end, end: end + gap });
+      t = end + gap;
+    }
     who = next;
   }
   vocal.forEach((v) => v.sort((a, b) => a.start - b.start));
-  return { floor, vocal };
+  return { floor, vocal, pauses };
 }
 
 // ---------------------------------------------------------------- synthesis
@@ -211,7 +217,7 @@ function build(dir, scenario) {
     index: i,
     clips: (m.clips || [{ start: 0, end: scenario.durationSec, inPoint: 0 }]).map((c) => Object.assign({ path: path.join(dir, m.file) }, c))
   }));
-  return { tracks, truth: script.floor, durationSec: scenario.durationSec };
+  return { tracks, truth: script.floor, vocal: script.vocal, pauses: script.pauses || [], durationSec: scenario.durationSec };
 }
 
 // ---------------------------------------------------------------- scenarios
