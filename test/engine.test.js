@@ -120,3 +120,25 @@ test('cleanMask bridges short gaps and drops short bursts', () => {
   E._cleanMask(m, 2, 2);
   assert.deepStrictEqual(Array.from(m), [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
 });
+
+test('mics that hear each other almost as loud as their own person still split screen time fairly', () => {
+  // Real-episode bug: one speaker got 83% of the screen. Mic A is only 5 dB louder for
+  // person A than for B; mic B is gained up and hears A just 3 dB below B.
+  const a = [[0, 12], [24, 36], [48, 60]];
+  const b = [[12, 24], [36, 48]];
+  // Real speech has proper pauses: 0.8 s every 4 s here, on both mics at once.
+  const n = secs(60);
+  const micA = new Float32Array(n), micB = new Float32Array(n);
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const inAny = (ranges, t) => ranges.some(([s0, s1]) => t >= s0 && t < s1);
+  for (let i = 0; i < n; i++) {
+    const t = i * W, pause = (i % 40) < 8;
+    const aTalks = !pause && inAny(a, t), bTalks = !pause && inAny(b, t);
+    micA[i] = aTalks ? -26 + rnd() * 3 : bTalks ? -31 + rnd() * 3 : -64 + rnd() * 3;
+    micB[i] = bTalks ? -20 + rnd() * 3 : aTalks ? -23 + rnd() * 3 : -58 + rnd() * 3;
+  }
+  const { active } = E.detectSpeech([micA, micB], { windowSec: W });
+  const segs = E.buildEdit(active, { windowSec: W, speakerCams: [1, 2], wideCam: 0, leadInSec: 0, overlapToWide: false });
+  assert.deepStrictEqual(segs.map((s) => s.cam), [1, 2, 1, 2, 1]);
+});
