@@ -534,14 +534,18 @@
       tracks: tracks,
       segments: frames
     };
-    say('Snip snip! Making ' + (frames.length - 1) + ' cuts. Premiere might freeze for a sec…', 'cut');
+    say('Saving your project, then making ' + (frames.length - 1) + ' cuts in a new copy of the sequence. Premiere might freeze for a sec…', 'cut');
     // Let the status paint before Premiere blocks the UI thread.
     var cutStarted = Date.now();
     setTimeout(function () {
       callHost('AC_applyEdit', JSON.stringify(payload))
         .then(function (res) {
           var secs = ((Date.now() - cutStarted) / 1000).toFixed(1);
-          say('Done in ' + secs + ' s! Look for “' + res.name + '” in your project. Your original is untouched.', 'done');
+          if (res.originalUntouched === false) {
+            return setStatus('Cut “' + res.name + '”, but your original sequence looks changed. Undo in Premiere (⌘Z) and tell me what happened.', 'error');
+          }
+          say('Done in ' + secs + ' s! Cuts are in the new sequence “' + res.name + '”. Your original is untouched' +
+            (res.saved === false ? '.' : ' and the project was saved first.'), 'done');
         })
         .catch(function (err) { setStatus(err.message, 'error'); })
         .then(function () { setBusy(false); });
@@ -657,7 +661,7 @@
       return { ok: true, tracks: JSON.parse(json).map(function (i) { return { index: i, clips: [{}, {}, {}, {}] }; }) };
     },
     AC_applyEdit: function () {
-      return { ok: true, name: 'EP 142 Multicam – AutoCut' };
+      return { ok: true, name: 'EP 142 Multicam – AutoCut', saved: true, originalUntouched: true };
     },
     analyze: function (tracks, n, onProgress, job) {
       var total = 3312 * tracks.length, done = 0;

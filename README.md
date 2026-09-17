@@ -18,7 +18,7 @@ between their cameras — with wide shots for cross-talk and long monologues.
    and one mic per audio track (A1 host, A2 guest), all synced.
 4. Pick how cutty (Sleepy / Chatty / Chaotic), hit **LISTEN!**, then **CUT IT!**
 
-AutoCut duplicates your sequence (`<name> – AutoCut`) and disables the unused
+AutoCut saves your project, then duplicates your sequence (`<name> – AutoCut`, numbered if that name is taken) and disables the unused
 angle on each cut, so every shot can be flipped back on by hand.
 
 Windows: install `Arrow AutoCut.zxp` with a ZXP installer and put `ffmpeg.exe`
