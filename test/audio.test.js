@@ -37,3 +37,38 @@ test('end-to-end on synthesized mics', { skip: !ffmpeg && 'ffmpeg not found' }, 
   assert.ok(Math.abs(segs[2].start - 20) < 0.5);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('one stereo recorder on two tracks: each track hears its own channel, and the cache is reused',
+  { skip: !ffmpeg && 'ffmpeg not found' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-'));
+  const file = path.join(dir, 'recorder.wav');
+  // Left channel talks 0-10 s, right channel talks 10-20 s.
+  execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
+    `aevalsrc='0.4*lt(t,10)*sin(2*PI*300*t)+0.001*random(0)|0.4*gte(t,10)*sin(2*PI*300*t)+0.001*random(1)':s=48000:d=20`, file]);
+  const tracks = [
+    { index: 0, clips: [{ path: file, start: 0, end: 20, inPoint: 0 }] },
+    { index: 1, clips: [{ path: file, start: 0, end: 20, inPoint: 0 }] }
+  ];
+  const W = 0.05, total = Math.ceil(20 / W), cacheDir = path.join(dir, 'cache');
+  const first = await A.analyzeTracks(ffmpeg, tracks, total, W, { cacheDir });
+  assert.strictEqual(first.notes[0].type, 'splitChannels');
+  const mean = (lv, a, b) => { let s = 0; for (let i = a / W; i < b / W; i++) s += lv[i]; return s / ((b - a) / W); };
+  assert.ok(mean(first.levels[0], 1, 9) - mean(first.levels[0], 11, 19) > 30, 'left channel loud first');
+  assert.ok(mean(first.levels[1], 11, 19) - mean(first.levels[1], 1, 9) > 30, 'right channel loud second');
+
+  const again = await A.analyzeTracks(ffmpeg, tracks, total, W, { cacheDir });
+  assert.strictEqual(again.decodedSec, 0, 'second listen comes from cache');
+  assert.deepStrictEqual(Array.from(again.levels[1]), Array.from(first.levels[1]));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('low rumble does not count as speech', { skip: !ffmpeg && 'ffmpeg not found' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocut-'));
+  const file = path.join(dir, 'rumble.wav');
+  // 50 Hz hum for 10 s, then a speech-band tone that is 6 dB quieter than the hum.
+  execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
+    `aevalsrc='0.2*lt(t,10)*sin(2*PI*50*t)+0.1*gte(t,10)*sin(2*PI*800*t)':s=48000:d=20`, file]);
+  const lv = await A.clipLevels(ffmpeg, file, 0, 20, 0.1);
+  assert.ok(lv[150] - lv[50] > 15, `speech ${lv[150]} dB should beat rumble ${lv[50]} dB`);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

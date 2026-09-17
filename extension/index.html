@@ -7,6 +7,24 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div class="dreamscape" aria-hidden="true">
+    <span class="orb"></span>
+    <span class="cloud c1"></span>
+    <span class="cloud c2"></span>
+    <span class="cloud c3"></span>
+    <span class="dream-eye"></span>
+    <span class="floor"></span>
+  </div>
+
+  <!-- Clay shading shared by the mascot -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="clayButter" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#ffd772"/><stop offset="1" stop-color="#f3a64a"/></radialGradient>
+      <radialGradient id="clayLilac" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#e2d8ff"/><stop offset="1" stop-color="#8f71f2"/></radialGradient>
+      <radialGradient id="clayPink" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#ffd6e8"/><stop offset="1" stop-color="#f26aa8"/></radialGradient>
+    </defs>
+  </svg>
+
   <header class="hero">
     <svg id="mascot" class="mascot mood-idle" viewBox="0 0 120 132" aria-hidden="true">
       <g class="sparkles only-done">
@@ -23,6 +41,7 @@
         <path class="arm only-done" d="M89 60 Q106 50 108 32" />
         <g class="head">
           <rect class="skin" x="30" y="12" width="60" height="86" rx="30" />
+          <ellipse class="gloss" cx="44" cy="22" rx="9" ry="5" transform="rotate(-25 44 22)" />
           <path class="grille" d="M34 66 H86" />
           <path class="grille" d="M36 76 H84" />
           <path class="grille" d="M42 86 H78" />
@@ -96,6 +115,8 @@
         <summary>Nerd knobs</summary>
         <label class="slider"><span>Mic sensitivity</span><output data-for="sensitivityDb"></output>
           <input type="range" id="sensitivityDb" min="4" max="24" step="1"></label>
+        <label class="slider"><span>Ignore reactions shorter than</span><output data-for="minTalkSec"></output>
+          <input type="range" id="minTalkSec" min="0.3" max="3" step="0.1"></label>
         <label class="slider"><span>Shortest shot</span><output data-for="minShotSec"></output>
           <input type="range" id="minShotSec" min="0.5" max="8" step="0.5"></label>
         <label class="slider"><span>Cut to wide after</span><output data-for="maxShotSec"></output>
@@ -116,8 +137,12 @@
       <div id="meters" class="meters" hidden></div>
 
       <div id="result" hidden>
-        <canvas id="preview" height="40" aria-label="Camera cuts across the episode"></canvas>
+        <div class="preview-wrap">
+          <canvas id="preview" aria-label="Camera cuts across the episode, with a lane per speaker showing when they talk. Click to move the Premiere playhead."></canvas>
+          <span id="previewTip" class="preview-tip" hidden></span>
+        </div>
         <div class="ruler"><span>0:00:00</span><span id="rulerMid"></span><span id="rulerEnd"></span></div>
+        <ul id="warnings" class="warnings" hidden></ul>
         <p class="legend-title">Screen time</p>
         <div id="legend" class="legend"></div>
       </div>
