@@ -165,7 +165,7 @@ test('25 fps: camera tracks tile their segments exactly', () => {
   }
   assert.deepStrictEqual(actualPieces(doc, 0).map((p) => [p.start, p.end]), [[0, 100], [900, 1500]]);
   assert.deepStrictEqual(actualPieces(doc, 2), [{ start: 400, end: 420, in: 400, out: 420, ticksIn: '4064256000000', ticksOut: '4267468800000' }]);
-  assert.deepStrictEqual(stats, { clipsIn: 3, clipsOut: 5, cuts: 4, cameras: 3 });
+  assert.deepStrictEqual(stats, { clipsIn: 3, clipsOut: 5, cuts: 4, cameras: 3, removedFrames: 0, removedRanges: 0 });
 
   // Copies of a split clip get unique ids.
   const ids = [];
@@ -252,7 +252,7 @@ test('29.97: gaps, transitions (-1 edges) and disabled clips on a user-cut track
     { start: 1500, end: 1800, in: 5300, out: 5600, ticksIn: String(5300n * T), ticksOut: String(5600n * T) }
   ]);
   assert.deepStrictEqual(actualPieces(doc, 2).map((p) => [p.start, p.end]), [[700, 1000]], 'disabled clip dropped');
-  assert.deepStrictEqual(stats, { clipsIn: 6, clipsOut: 6, cuts: 4, cameras: 3 });
+  assert.deepStrictEqual(stats, { clipsIn: 6, clipsOut: 6, cuts: 4, cameras: 3, removedFrames: 0, removedRanges: 0 });
 
   let transitions = 0;
   walk(kid(kid(seqOf(doc), 'media'), 'video'), (el) => { if (el.name === 'transitionitem') transitions++; });
@@ -358,4 +358,257 @@ test('disable mode keeps every angle, split at each switch, with off-screen piec
       assert.strictEqual(c.enabled, !!seg && seg.cam === cam, `V${cam + 1} ${c.start}-${c.end}`);
     }
   }
+});
+
+// --- trim dead air (ripple delete) -------------------------------------------
+
+const T25 = 10160640000n; // ticks per 25 fps frame
+
+// Every track, video then audio.
+function allItems(doc) {
+  const out = [];
+  const nV = videoTracks(doc).length, nA = kids(audioOf(doc), 'track').length;
+  for (let t = 0; t < nV; t++) out.push(X.listClips(doc, t));
+  for (let t = 0; t < nA; t++) out.push(X.listClips(doc, t, 'audio'));
+  return out;
+}
+
+// Reference ripple for 1x-speed clips: split each item around the ranges, shift left.
+function expectedTrim(tracks, ranges, T) {
+  const sorted = ranges.slice().sort((a, b) => a.startFrame - b.startFrame);
+  const merged = [];
+  for (const r of sorted) {
+    const last = merged[merged.length - 1];
+    if (r.endFrame <= r.startFrame) continue;
+    if (last && r.startFrame <= last.endFrame) last.endFrame = Math.max(last.endFrame, r.endFrame);
+    else merged.push({ ...r });
+  }
+  const map = (f) => {
+    let removed = 0;
+    for (const r of merged) {
+      if (f >= r.endFrame) removed += r.endFrame - r.startFrame;
+      else if (f > r.startFrame) return r.startFrame - removed;
+    }
+    return f - removed;
+  };
+  return tracks.map((items) => {
+    const out = [];
+    for (const c of items) {
+      if (c.type === 'transitionitem') continue;
+      let cursor = c.start;
+      const keep = [];
+      for (const r of merged) {
+        if (r.endFrame <= cursor || r.startFrame >= c.end) continue;
+        if (r.startFrame > cursor) keep.push([cursor, r.startFrame]);
+        cursor = Math.max(cursor, r.endFrame);
+      }
+      if (c.end > cursor) keep.push([cursor, c.end]);
+      for (const [a, b] of keep) {
+        const inF = c.in + (a - c.start), outF = c.in + (b - c.start);
+        out.push({
+          start: map(a), end: map(b), in: inF, out: outF, enabled: c.enabled,
+          ticksIn: String(BigInt(inF) * T), ticksOut: String(BigInt(outF) * T)
+        });
+      }
+    }
+    return out;
+  });
+}
+
+const plain = (tracks) => tracks.map((items) => items.filter((c) => c.type !== 'transitionitem')
+  .map((c) => ({ start: c.start, end: c.end, in: c.in, out: c.out, enabled: c.enabled, ticksIn: c.pproTicksIn, ticksOut: c.pproTicksOut })));
+
+function assertUniqueIds(xml) {
+  const ids = [];
+  walk(X.parse(xml), (el) => { if (el.name === 'clipitem' || el.name === 'generatoritem') ids.push(X._getAttr(el, 'id')); });
+  assert.strictEqual(new Set(ids).size, ids.length, 'clip ids stay unique');
+  return ids;
+}
+
+test('trim: audio clip advances across a removed range', () => {
+  const { xml, stats } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', removeRanges: [{ startFrame: 400, endFrame: 500 }] });
+  const a1 = X.listClips(xml, 0, 'audio').map((c) => [c.id, c.start, c.end, c.in, c.out, c.pproTicksIn, c.pproTicksOut]);
+  assert.deepStrictEqual(a1, [
+    ['clipitem-5-t1', 0, 400, 0, 400, '0', String(400n * T25)],
+    ['clipitem-5-t2', 400, 1400, 500, 1500, String(500n * T25), String(1500n * T25)]
+  ]);
+  assert.strictEqual(stats.removedFrames, 100);
+  assert.strictEqual(stats.removedRanges, 1);
+  assert.strictEqual(text(kid(seqOf(X.parse(xml)), 'duration')), '1400');
+  // The 400-420 guest shot sat entirely inside the removed range.
+  assert.strictEqual(X.countClips(xml, 2), 0);
+});
+
+for (const mode of ['cut', 'disable']) {
+  test(`trim (${mode}): every track ripples, split pieces keep source and ticks`, () => {
+    const ranges = [{ startFrame: 400, endFrame: 500 }, { startFrame: 600, endFrame: 620 }, { startFrame: 300, endFrame: 360 }];
+    const base = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', mode });
+    const { xml, stats } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', mode, removeRanges: ranges });
+    const doc = X.parse(xml);
+    const before = allItems(X.parse(base.xml)), after = plain(allItems(doc));
+    assert.deepStrictEqual(after, expectedTrim(before, ranges, T25));
+    assert.deepStrictEqual(stats, { ...base.stats, removedFrames: 180, removedRanges: 3 });
+    assert.strictEqual(text(kid(seqOf(doc), 'duration')), '1320');
+
+    // No new gaps: tracks that covered 0-1500 now cover 0-1320 end to end (tracks 4, 5 = A1, A2).
+    const full = mode === 'disable' ? [0, 1, 2, 4, 5] : [4, 5];
+    for (const t of full) {
+      const items = after[t];
+      assert.strictEqual(items[0].start, 0);
+      assert.strictEqual(items[items.length - 1].end, 1320);
+      for (let i = 1; i < items.length; i++) assert.strictEqual(items[i].start, items[i - 1].end, `track ${t} tiles`);
+    }
+    if (mode === 'cut') {
+      // Cut-mode camera tracks together still tile the whole (shorter) timeline.
+      const cams = [0, 1, 2].flatMap((t) => after[t]).sort((p, q) => p.start - q.start);
+      assert.strictEqual(cams[0].start, 0);
+      for (let i = 1; i < cams.length; i++) assert.strictEqual(cams[i].start, cams[i - 1].end);
+      assert.strictEqual(cams[cams.length - 1].end, 1320);
+    }
+    // Graphics 250-375 lose 300-360: 250-300 + 300-315.
+    assert.deepStrictEqual(after[3].map((c) => [c.start, c.end, c.in, c.out]), [[250, 300, 0, 50], [300, 315, 110, 125]]);
+
+    const ids = assertUniqueIds(xml);
+    if (mode === 'cut') assert.ok(ids.includes('clipitem-2-as2-t1') && ids.includes('clipitem-2-as2-t2'), 'a camera piece split again');
+    else assert.ok(ids.some((id) => /-as\d+-t\d+$/.test(id)));
+    assertFileRule(A, doc);
+    assertNoLinks(doc);
+  });
+}
+
+test('trim: disabled pieces from disable mode stay disabled', () => {
+  const { xml } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', mode: 'disable', removeRanges: [{ startFrame: 50, endFrame: 150 }] });
+  // V1: on 0-100, off 100-900 -> on 0-50, off 50-800.
+  assert.deepStrictEqual(X.listClips(xml, 0).slice(0, 2).map((c) => [c.start, c.end, c.in, c.enabled]), [[0, 50, 0, true], [50, 800, 150, false]]);
+});
+
+test('trim: a removed range across a camera cut joins the neighbours', () => {
+  const { xml } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', removeRanges: [{ startFrame: 80, endFrame: 130 }] });
+  const doc = X.parse(xml);
+  assert.deepStrictEqual(actualPieces(doc, 0)[0], { start: 0, end: 80, in: 0, out: 80, ticksIn: '0', ticksOut: String(80n * T25) });
+  assert.deepStrictEqual(actualPieces(doc, 1)[0], { start: 80, end: 350, in: 130, out: 400, ticksIn: String(130n * T25), ticksOut: String(400n * T25) });
+});
+
+test('trim: ranges merge, and ranges at the very start and end', () => {
+  const ranges = [
+    { startFrame: 40, endFrame: 60 }, { startFrame: 0, endFrame: 50 }, { startFrame: 60, endFrame: 70 }, // -> 0-70
+    { startFrame: 300, endFrame: 300 }, // empty
+    { startFrame: 1450, endFrame: 1500 }, { startFrame: 1480, endFrame: 1700 } // -> 1450-1500 (clipped to the end)
+  ];
+  const { xml, stats } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', removeRanges: ranges });
+  assert.strictEqual(stats.removedRanges, 2);
+  assert.strictEqual(stats.removedFrames, 120);
+  const doc = X.parse(xml);
+  assert.strictEqual(text(kid(seqOf(doc), 'duration')), '1380');
+  assert.deepStrictEqual(actualPieces(doc, 0), [
+    { start: 0, end: 30, in: 70, out: 100, ticksIn: String(70n * T25), ticksOut: String(100n * T25) },
+    { start: 830, end: 1380, in: 900, out: 1450, ticksIn: String(900n * T25), ticksOut: String(1450n * T25) }
+  ]);
+  const a1 = X.listClips(doc, 0, 'audio');
+  assert.deepStrictEqual(a1.map((c) => [c.id, c.start, c.end, c.in, c.out]), [['clipitem-5', 0, 1380, 70, 1450]], 'one piece keeps its id');
+  // The marker at 250 moves to 180.
+  assert.strictEqual(text(kid(kid(seqOf(doc), 'marker'), 'in')), '180');
+});
+
+test('trim: transitions are dropped when they touch a removed range, shifted otherwise', () => {
+  const T = 8475667200n;
+  // V2 is not a camera track here, so its transition (1185-1215) and -1 edges survive the rebuild.
+  const kept = X.rebuild(B, { segments: segsB, camTracks: [0], newName: 'x', removeRanges: [{ startFrame: 100, endFrame: 200 }] });
+  const v2 = X.listClips(kept.xml, 1);
+  assert.deepStrictEqual(v2.map((c) => [c.type, c.id, c.start, c.end, c.in, c.out]), [
+    ['clipitem', 'clipitem-2-t1', 0, 100, 100, 200],
+    ['clipitem', 'clipitem-2-t2', 100, 500, 300, 700],
+    ['clipitem', 'clipitem-3', 800, -1, 1000, 1300],
+    ['transitionitem', null, 1085, 1115, null, null],
+    ['clipitem', 'clipitem-4', -1, 1700, 5000, 5600]
+  ]);
+  assert.strictEqual(v2[1].pproTicksIn, String(300n * T));
+  const keptDoc = X.parse(kept.xml);
+  assert.strictEqual(text(kid(kids(videoTracks(keptDoc)[1], 'transitionitem')[0], 'cutPointTicks')), '127135008000');
+
+  const dropped = X.rebuild(B, { segments: segsB, camTracks: [0], newName: 'x', removeRanges: [{ startFrame: 1190, endFrame: 1200 }] });
+  const v2d = X.listClips(dropped.xml, 1);
+  assert.deepStrictEqual(v2d.map((c) => [c.type, c.id, c.start, c.end, c.in, c.out]), [
+    ['clipitem', 'clipitem-2', 0, 600, 100, 700],
+    ['clipitem', 'clipitem-3', 900, 1190, 1000, 1290],
+    ['clipitem', 'clipitem-4', 1190, 1790, 5000, 5600]
+  ]);
+  assert.strictEqual(v2d[1].pproTicksOut, String(1290n * T));
+  assert.match(dropped.xml, /\n\t\t\t\t\t<\/clipitem>\n\t\t\t\t\t<clipitem id="clipitem-4">/, 'indentation kept where the transition was');
+  // Audio A1 and the disabled V3 clip ripple too.
+  assert.deepStrictEqual(X.listClips(dropped.xml, 0, 'audio').map((c) => [c.start, c.end, c.in, c.out]), [[0, 600, 100, 700], [900, 1190, 1000, 1290], [1190, 1790, 5000, 5600]]);
+  assert.deepStrictEqual(X.listClips(dropped.xml, 2).map((c) => [c.start, c.end, c.enabled]), [[0, 1190, true], [1190, 1790, false]]);
+  assert.strictEqual(text(kid(seqOf(X.parse(dropped.xml)), 'duration')), '1790');
+  assertFileRule(B, X.parse(dropped.xml));
+});
+
+test('trim: sequence markers inside removed ranges are dropped, later ones shifted', () => {
+  const marker = (name, inF, outF) => `<marker>\n\t\t\t<comment></comment>\n\t\t\t<name>${name}</name>\n\t\t\t<in>${inF}</in>\n\t\t\t<out>${outF}</out>\n\t\t</marker>\n\t\t`;
+  const xml = A.replace('<marker>', marker('gone', 450, -1) + marker('later', 600, 700) + marker('spans', 380, 450) + '<marker>')
+    .replace('\n\t\t\t</audio>\n\t\t</media>', '\n\t\t\t</audio>\n\t\t\t' + marker('media', 1000, -1) + '</media>');
+  const { xml: out } = X.rebuild(xml, { segments: segsA, camTracks: [0, 1, 2], newName: 'x', removeRanges: [{ startFrame: 400, endFrame: 500 }] });
+  const seq = seqOf(X.parse(out));
+  const read = (m) => [text(kid(m, 'name')), Number(text(kid(m, 'in'))), Number(text(kid(m, 'out')))];
+  assert.deepStrictEqual(kids(seq, 'marker').map(read), [['later', 500, 600], ['spans', 380, 400], ['Intro', 250, -1]]);
+  assert.deepStrictEqual(kids(kid(seq, 'media'), 'marker').map(read), [['media', 900, -1]]);
+  assert.ok(!out.includes('<name>gone</name>'));
+});
+
+test('mapFrame maps original frames onto the trimmed timeline', () => {
+  const ranges = [{ startFrame: 500, endFrame: 600 }, { startFrame: 100, endFrame: 200 }, { startFrame: 150, endFrame: 250 }];
+  assert.strictEqual(X.mapFrame(0, ranges), 0);
+  assert.strictEqual(X.mapFrame(99, ranges), 99);
+  assert.strictEqual(X.mapFrame(100, ranges), 100);
+  assert.strictEqual(X.mapFrame(180, ranges), 100, 'inside a range -> its start');
+  assert.strictEqual(X.mapFrame(249, ranges), 100);
+  assert.strictEqual(X.mapFrame(250, ranges), 100);
+  assert.strictEqual(X.mapFrame(300, ranges), 150);
+  assert.strictEqual(X.mapFrame(550, ranges), 350);
+  assert.strictEqual(X.mapFrame(600, ranges), 350);
+  assert.strictEqual(X.mapFrame(1000, ranges), 750);
+  assert.strictEqual(X.mapFrame(42, []), 42);
+});
+
+test('trim performance: 2,000 segments + 300 removed ranges, 3 cameras + 3 audio tracks', () => {
+  const frames = 2000 * 45;
+  // A third audio track: a copy of A2 with a fresh clip id.
+  const a2Start = A.lastIndexOf('\t\t\t\t<track', A.indexOf('<clipitem id="clipitem-6"'));
+  const audioEnd = '\t\t\t</audio>\n\t\t</media>';
+  const a2 = A.slice(a2Start, A.indexOf(audioEnd));
+  let xml = A.replace(audioEnd, a2.replace(/clipitem-6/g, 'clipitem-7') + audioEnd);
+  xml = xml.replace(/<end>1500<\/end>/g, `<end>${frames}</end>`).replace(/<out>1500<\/out>/g, `<out>${frames}</out>`)
+    .replace(/<duration>1500<\/duration>/, `<duration>${frames}</duration>`);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const segments = [];
+  let cam = 0;
+  for (let i = 0; i < 2000; i++) {
+    cam = (cam + 1 + Math.floor(rnd() * 2)) % 3;
+    segments.push({ startFrame: i * 45, endFrame: (i + 1) * 45, cam });
+  }
+  const removeRanges = [];
+  for (let i = 0; i < 300; i++) {
+    const at = Math.floor((i + 0.1 + rnd() * 0.5) * frames / 300);
+    removeRanges.push({ startFrame: at, endFrame: at + 20 + Math.floor(rnd() * 60) });
+  }
+  const opts = { segments, camTracks: [0, 1, 2], newName: 'perf', removeRanges };
+  X.rebuild(xml, opts);
+  const t0 = process.hrtime.bigint();
+  const { xml: out, stats } = X.rebuild(xml, opts);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  console.log(`# trim: 2000 segments, 300 ranges, ${stats.removedFrames} frames removed, ${(out.length / 1e6).toFixed(1)} MB in ${ms.toFixed(0)} ms`);
+  assert.strictEqual(stats.removedRanges, 300);
+  assert.ok(ms < 1500, `took ${ms} ms`);
+  const doc = X.parse(out);
+  const total = frames - stats.removedFrames;
+  const cams = [0, 1, 2].reduce((n, t) => n + actualPieces(doc, t).reduce((m, p) => m + p.end - p.start, 0), 0);
+  assert.strictEqual(cams, total, 'camera pieces tile the trimmed sequence');
+  for (let t = 0; t < 3; t++) {
+    const items = X.listClips(doc, t, 'audio');
+    assert.strictEqual(items.length, 301);
+    assert.strictEqual(items[items.length - 1].end, total);
+    for (let i = 1; i < items.length; i++) assert.strictEqual(items[i].start, items[i - 1].end);
+  }
+  assert.strictEqual(text(kid(seqOf(doc), 'duration')), String(total));
+  assertUniqueIds(out);
 });
