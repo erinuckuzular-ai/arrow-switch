@@ -457,8 +457,41 @@
     });
   }
 
+  /*
+   * What a media file is, for sorting cameras from mic stems.
+   * Resolves { durationSec, hasVideo, channels } (zeros when ffmpeg can't read it).
+   * Cover art in audio files (an "attached pic" video stream) doesn't count as video.
+   */
+  function probeMedia(ffmpeg, mediaPath) {
+    return new Promise(function (resolve) {
+      var p = childProcess.spawn(ffmpeg, ['-hide_banner', '-nostdin', '-i', mediaPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+      var err = '';
+      p.stderr.on('data', function (d) { err += d.toString(); });
+      p.on('error', function () { resolve({ durationSec: 0, hasVideo: false, channels: 0 }); });
+      p.on('close', function () {
+        var d = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(err);
+        var hasVideo = err.split('\n').some(function (line) {
+          return /Stream #.*: Video: /.test(line) && !/attached pic/.test(line);
+        });
+        var m = err.match(/Audio: [^\n]*?, \d+ Hz, ([^,\n]+)/);
+        var channels = 0;
+        if (m) {
+          var layout = m[1].trim().replace(/\(.*\)$/, '');
+          var n = /^(\d+) channels/.exec(layout);
+          channels = n ? Number(n[1]) : (LAYOUT_CHANNELS[layout] || 0);
+        }
+        resolve({
+          durationSec: d ? Number(d[1]) * 3600 + Number(d[2]) * 60 + Number(d[3]) : 0,
+          hasVideo: hasVideo,
+          channels: channels
+        });
+      });
+    });
+  }
+
   return {
     findFfmpeg: findFfmpeg,
+    probeMedia: probeMedia,
     clipLevels: clipLevels,
     fileLevels: fileLevels,
     probeDuration: probeDuration,

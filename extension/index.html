@@ -6,155 +6,257 @@
   <title>Arrow Switch</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-theme="light">
   <div class="dreamscape" aria-hidden="true">
     <span class="orb"></span>
     <span class="cloud c1"></span>
     <span class="cloud c2"></span>
     <span class="cloud c3"></span>
-    <span class="dream-eye"></span>
+    <span class="stars"></span>
     <span class="floor"></span>
   </div>
 
-  <!-- Clay shading shared by the mascot -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
-      <radialGradient id="clayButter" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#ffd772"/><stop offset="1" stop-color="#f3a64a"/></radialGradient>
-      <radialGradient id="clayLilac" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#e2d8ff"/><stop offset="1" stop-color="#8f71f2"/></radialGradient>
-      <radialGradient id="clayPink" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#ffd6e8"/><stop offset="1" stop-color="#f26aa8"/></radialGradient>
+      <radialGradient id="gMetal" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#d9dcea"/><stop offset="1" stop-color="#8f94ad"/></radialGradient>
+      <radialGradient id="gHandle" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#8b78b8"/><stop offset="1" stop-color="#3b2a55"/></radialGradient>
+      <radialGradient id="gGold" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff0b8"/><stop offset="1" stop-color="#f0a93b"/></radialGradient>
+      <linearGradient id="gBeer" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd35c"/><stop offset="1" stop-color="#e88a1a"/></linearGradient>
+      <radialGradient id="gPink" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#ffd6e8"/><stop offset="1" stop-color="#f26aa8"/></radialGradient>
+      <pattern id="pGrille" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="none"/><path d="M0 0 H6 M0 0 V6" stroke="#5b5f78" stroke-width="1.1" opacity=".55"/>
+      </pattern>
     </defs>
   </svg>
 
+  <!-- ============================================================ header -->
   <header class="hero">
-    <svg id="mascot" class="mascot mood-idle" viewBox="0 0 120 132" aria-hidden="true">
+    <svg id="mascot" class="mascot mood-idle" viewBox="-6 -10 132 150" aria-hidden="true">
       <g class="sparkles only-done">
-        <path d="M10 22 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4z" />
-        <path d="M100 8 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3z" />
-        <path d="M106 70 l2 -5 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2z" />
+        <path d="M2 30 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4z"/>
+        <path d="M108 2 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3z"/>
       </g>
       <g class="body">
-        <path class="stand" d="M60 96 V118" />
-        <ellipse class="base" cx="60" cy="122" rx="24" ry="6" />
-        <path class="arm not-done" d="M31 66 Q16 74 20 92" />
-        <path class="arm not-done" d="M89 66 Q104 74 100 92" />
-        <path class="arm only-done" d="M31 60 Q14 50 12 32" />
-        <path class="arm only-done" d="M89 60 Q106 50 108 32" />
+        <path class="cable" d="M60 120 C58 134 86 138 96 126 S118 118 116 132"/>
+        <!-- arm + beer, lowered -->
+        <g class="beer-arm not-done not-error">
+          <path class="arm" d="M42 76 Q26 84 26 96"/>
+          <g class="beer">
+            <path class="mug-handle" d="M8 96 q-9 0 -9 9 q0 9 9 9"/>
+            <rect class="mug" x="8" y="90" width="26" height="30" rx="6"/>
+            <path class="bubbles" d="M16 108 v4 M24 100 v3 M27 111 v3"/>
+            <path class="foam" d="M5 92 q2 -9 11 -7 q4 -7 12 -2 q9 -3 9 7 q-2 5 -8 3 q-6 4 -12 0 q-7 3 -12 -1z"/>
+          </g>
+        </g>
+        <!-- arm + beer, raised for cheers -->
+        <g class="beer-arm raised only-done">
+          <path class="arm" d="M80 74 Q100 60 102 40"/>
+          <g class="beer" transform="rotate(18 106 30)">
+            <path class="mug-handle" d="M118 26 q9 0 9 9 q0 9 -9 9"/>
+            <rect class="mug" x="92" y="20" width="26" height="30" rx="6"/>
+            <path class="foam" d="M89 22 q2 -9 11 -7 q4 -7 12 -2 q9 -3 9 7 q-2 5 -8 3 q-6 4 -12 0 q-7 3 -12 -1z"/>
+            <path class="splash" d="M96 6 q2 -6 5 0 M110 2 q3 -6 5 0 M120 12 q4 -4 5 2"/>
+          </g>
+        </g>
+        <!-- spilled beer -->
+        <g class="only-error">
+          <path class="arm" d="M42 76 Q24 90 16 104"/>
+          <g transform="rotate(-100 18 116)"><rect class="mug" x="6" y="104" width="26" height="30" rx="6"/></g>
+          <path class="puddle" d="M-4 128 q14 -8 30 -2 q16 -5 26 3 q-4 6 -28 4 q-22 3 -28 -5z"/>
+        </g>
+        <path class="arm other not-done" d="M78 76 Q96 84 98 98"/>
+        <circle class="hand not-done" cx="98" cy="100" r="5"/>
+        <g class="scissors only-cut">
+          <circle cx="104" cy="104" r="5"/><circle cx="96" cy="112" r="5"/>
+          <path d="M100 100 L116 84 M101 108 L118 94"/>
+        </g>
+
+        <path class="handle" d="M44 72 L50 118 Q60 126 70 118 L76 72 Z"/>
+        <rect class="switch" x="55" y="90" width="10" height="14" rx="4"/>
+        <circle class="switch-dot" cx="60" cy="94" r="2.4"/>
+        <rect class="collar" x="38" y="62" width="44" height="14" rx="7"/>
+
         <g class="head">
-          <rect class="skin" x="30" y="12" width="60" height="86" rx="30" />
-          <ellipse class="gloss" cx="44" cy="22" rx="9" ry="5" transform="rotate(-25 44 22)" />
-          <path class="grille" d="M34 66 H86" />
-          <path class="grille" d="M36 76 H84" />
-          <path class="grille" d="M42 86 H78" />
-          <g class="eyes not-error">
-            <circle class="eye" cx="47" cy="38" r="11" />
-            <circle class="eye" cx="73" cy="38" r="11" />
-            <g class="pupils">
-              <circle cx="49" cy="40" r="5" />
-              <circle cx="75" cy="40" r="5" />
+          <circle class="ball" cx="60" cy="34" r="32"/>
+          <circle class="grille" cx="60" cy="34" r="32"/>
+          <ellipse class="gloss" cx="46" cy="16" rx="10" ry="5" transform="rotate(-30 46 16)"/>
+          <g class="face">
+            <ellipse class="blush" cx="38" cy="44" rx="6" ry="3.5"/>
+            <ellipse class="blush" cx="82" cy="44" rx="6" ry="3.5"/>
+            <g class="eyes not-error">
+              <ellipse class="eye" cx="48" cy="32" rx="8" ry="9"/>
+              <ellipse class="eye" cx="72" cy="32" rx="8" ry="9"/>
+              <g class="pupils"><circle cx="50" cy="34" r="4"/><circle cx="74" cy="34" r="4"/></g>
+              <path class="lid" d="M39 29 Q48 22 57 29 M63 29 Q72 22 81 29"/>
             </g>
+            <path class="brow" d="M38 18 L56 23 M82 18 L64 23"/>
+            <g class="xeyes only-error"><path d="M42 26 l12 12 M54 26 l-12 12 M66 26 l12 12 M78 26 l-12 12"/></g>
+            <path class="mouth only-idle" d="M50 50 Q62 56 72 46"/>
+            <ellipse class="mouth fill only-listen" cx="60" cy="52" rx="4" ry="5"/>
+            <path class="mouth teeth only-cut" d="M47 50 H73 M52 46 V54 M60 46 V54 M68 46 V54"/>
+            <path class="mouth fill only-done" d="M46 46 Q60 66 74 46 Z"/>
+            <path class="mouth only-error" d="M46 52 q4 -5 8 0 t8 0 t8 0"/>
           </g>
-          <g class="xeyes only-error">
-            <path d="M40 31 l14 14 M54 31 l-14 14" />
-            <path d="M66 31 l14 14 M80 31 l-14 14" />
-          </g>
-          <path class="mouth only-idle" d="M50 55 Q60 62 70 55" />
-          <ellipse class="mouth fill only-listen" cx="60" cy="57" rx="5" ry="6" />
-          <path class="mouth only-cut" d="M48 57 H72 M52 53 V61 M60 53 V61 M68 53 V61" />
-          <path class="mouth fill only-done" d="M46 52 Q60 70 74 52 Z" />
-          <path class="mouth only-error" d="M46 58 q4 -5 8 0 t8 0 t8 0" />
-          <path class="sweat only-cut" d="M92 22 q5 8 0 11 q-5 -3 0 -11z" />
+          <path class="sweat only-cut" d="M92 12 q6 9 0 13 q-6 -4 0 -13z"/>
         </g>
         <g class="headphones only-listen">
-          <path d="M24 44 Q24 0 60 0 Q96 0 96 44" />
-          <rect x="16" y="36" width="14" height="24" rx="6" />
-          <rect x="90" y="36" width="14" height="24" rx="6" />
+          <path d="M22 36 Q22 -12 60 -12 Q98 -12 98 36"/>
+          <rect x="14" y="24" width="14" height="26" rx="6"/>
+          <rect x="92" y="24" width="14" height="26" rx="6"/>
         </g>
       </g>
     </svg>
+
     <div class="bubble">
-      <p id="status" role="status" aria-live="polite">Hi! Open a podcast sequence and I’ll cut it for you.</p>
-      <button id="refresh" class="seq" title="Reload the active sequence"><span id="seqLabel">No sequence</span> ↻</button>
+      <p id="status" role="status" aria-live="polite">Hi!</p>
+      <div class="bubble-row">
+        <button id="refresh" class="pill seq" title="Reload the active sequence"><span id="seqLabel">No sequence</span> ↻</button>
+        <span id="mcBadge" class="pill badge" hidden>🎛 multicam</span>
+      </div>
+    </div>
+
+    <div class="corner-tools">
+      <button id="themeBtn" class="icon-btn" title="Theme: auto / light / dark" aria-label="Change theme">◐</button>
+      <button id="toneBtn" class="icon-btn" title="Tone: mean or nice" aria-label="Change tone">🍺</button>
     </div>
   </header>
 
-  <!-- No sequence open -->
-  <section id="empty" class="sticker">
-    <h2>First, set up your sequence like this</h2>
-    <ul class="stack" aria-label="Example track layout">
-      <li class="c3"><b>V3</b> Guest camera</li>
-      <li class="c2"><b>V2</b> Host camera</li>
-      <li class="c0"><b>V1</b> Wide shot</li>
-      <li class="gap" aria-hidden="true"></li>
-      <li class="c2 mic"><b>A1</b> Host mic</li>
-      <li class="c3 mic"><b>A2</b> Guest mic</li>
-    </ul>
-    <button id="load" class="big">Use this sequence</button>
+  <!-- ============================================================ tabs -->
+  <nav class="tabs" role="tablist">
+    <span class="tab-slider" aria-hidden="true"></span>
+    <button id="tabSetup" role="tab" data-tab="setup" aria-selected="false"><span class="tab-ico">🎬</span> Set up</button>
+    <button id="tabCut" role="tab" data-tab="cut" aria-selected="true"><span class="tab-ico">✂️</span> Cut</button>
+  </nav>
+
+  <!-- ============================================================ setup pane -->
+  <section id="setupPane" class="pane" role="tabpanel" hidden>
+    <section class="sticker">
+      <h2><span class="num">1</span> Chuck your files in</h2>
+      <button id="dropZone" class="dropzone">
+        <span class="dz-icons" aria-hidden="true"><i class="ico cam"></i><i class="ico mic"></i></span>
+        <b>Add cameras + mic files</b>
+        <small>or drag them in here · cameras keep their master audio</small>
+      </button>
+      <button id="grabSelection" class="link">use what’s selected in the Project panel</button>
+      <ul id="fileList" class="file-list"></ul>
+    </section>
+
+    <section class="sticker">
+      <h2><span class="num">2</span> Name + tidy</h2>
+      <label class="field"><span class="field-label">Episode name</span>
+        <input id="episodeName" type="text" spellcheck="false" placeholder="EP 143 – someone famous-ish"></label>
+      <label class="switch-row"><input type="checkbox" id="optColour" checked><span class="sw"></span> Colour-code everyone’s clips</label>
+      <label class="switch-row"><input type="checkbox" id="optMute" checked><span class="sw"></span> Mute the other cameras’ audio (keep one master)</label>
+    </section>
+
+    <section class="sticker">
+      <h2><span class="num">3</span> Sync it</h2>
+      <ul id="syncList" class="sync-list" hidden></ul>
+      <button id="buildBtn" class="big go-violet">SYNC &amp; BUILD</button>
+      <button id="buildCancel" class="link" hidden>stop</button>
+    </section>
   </section>
 
-  <main id="app" hidden>
-    <section class="sticker">
-      <h2><span class="num">1</span> Who’s on which camera?</h2>
-      <span id="autoTag" class="scribble" hidden>I guessed these!</span>
-      <div id="speakers"></div>
-      <div class="wide-row">
-        <span class="wide-label">Wide shot</span>
-        <select id="wideCam" aria-label="Wide shot camera"></select>
-      </div>
-      <button id="addSpeaker" class="dashed">+ another person</button>
+  <!-- ============================================================ cut pane -->
+  <section id="cutPane" class="pane" role="tabpanel">
+    <section id="empty" class="sticker">
+      <h2>No sequence? Two options</h2>
+      <p class="desc">Open a podcast sequence in Premiere and hit the button, or build one from raw files in <b>Set up</b>.</p>
+      <ul class="stack" aria-label="Example track layout">
+        <li class="c3"><b>V3</b> Guest camera</li>
+        <li class="c2"><b>V2</b> Host camera</li>
+        <li class="c0"><b>V1</b> Wide shot</li>
+        <li class="gap" aria-hidden="true"></li>
+        <li class="c2 mic"><b>A1</b> Host mic</li>
+        <li class="c3 mic"><b>A2</b> Guest mic</li>
+      </ul>
+      <button id="load" class="big">Use this sequence</button>
+      <button id="goSetup" class="link">or set up a new episode →</button>
     </section>
 
-    <section class="sticker">
-      <h2><span class="num">2</span> How cutty?</h2>
-      <div class="pace" role="radiogroup" aria-label="Cut pacing">
-        <button data-vibe="chill" role="radio"><b>Sleepy</b><small>long shots</small></button>
-        <button data-vibe="balanced" role="radio"><b>Chatty</b><small>follows talk</small></button>
-        <button data-vibe="hype" role="radio"><b>Chaotic</b><small>snip snip</small></button>
-      </div>
-      <p id="pacingDesc" class="desc"></p>
-      <details class="knobs">
-        <summary>Nerd knobs</summary>
-        <label class="slider"><span>Mic sensitivity</span><output data-for="sensitivityDb"></output>
-          <input type="range" id="sensitivityDb" min="4" max="24" step="1"></label>
-        <label class="slider"><span>Ignore reactions shorter than</span><output data-for="minTalkSec"></output>
-          <input type="range" id="minTalkSec" min="0.3" max="3" step="0.1"></label>
-        <label class="slider"><span>Shortest shot</span><output data-for="minShotSec"></output>
-          <input type="range" id="minShotSec" min="0.5" max="8" step="0.5"></label>
-        <label class="slider"><span>Cut to wide after</span><output data-for="maxShotSec"></output>
-          <input type="range" id="maxShotSec" min="0" max="60" step="5"></label>
-        <label class="slider"><span>Wide shot length</span><output data-for="wideShotSec"></output>
-          <input type="range" id="wideShotSec" min="1" max="8" step="0.5"></label>
-        <label class="slider"><span>Cut before they talk</span><output data-for="leadInSec"></output>
-          <input type="range" id="leadInSec" min="0" max="1" step="0.05"></label>
-        <label class="check"><input type="checkbox" id="overlapToWide"> Talking over each other → wide shot</label>
-        <label class="check"><input type="checkbox" id="deleteUnused"> Delete unused angles (instead of hiding)</label>
-      </details>
-    </section>
-
-    <section class="sticker">
-      <h2><span class="num">3</span> Do the thing</h2>
-      <span id="programMeta" class="scribble"></span>
-
-      <div id="meters" class="meters" hidden></div>
-
-      <div id="result" hidden>
-        <div class="preview-wrap">
-          <canvas id="preview" aria-label="Camera cuts across the episode, with a lane per speaker showing when they talk. Click to move the Premiere playhead."></canvas>
-          <span id="previewTip" class="preview-tip" hidden></span>
+    <main id="app" hidden>
+      <section class="sticker">
+        <h2><span class="num">1</span> Who’s who?</h2>
+        <span id="autoTag" class="scribble" hidden>I guessed these!</span>
+        <div id="speakers"></div>
+        <div class="wide-row">
+          <span class="wide-ico" id="wideIco"></span>
+          <span class="wide-label">Wide</span>
+          <select id="wideCam" aria-label="Wide shot camera"></select>
         </div>
-        <div class="ruler"><span>0:00:00</span><span id="rulerMid"></span><span id="rulerEnd"></span></div>
-        <ul id="warnings" class="warnings" hidden></ul>
-        <p class="legend-title">Screen time</p>
-        <div id="legend" class="legend"></div>
-      </div>
+        <button id="addSpeaker" class="dashed">+ another person</button>
+      </section>
 
-      <button id="analyze" class="big">LISTEN!</button>
-      <button id="apply" class="big go" hidden>CUT IT!</button>
-      <button id="reanalyze" class="link" hidden>listen again</button>
-    </section>
-  </main>
+      <section class="sticker">
+        <h2><span class="num">2</span> How cutty?</h2>
+        <div id="presets" class="presets" role="radiogroup" aria-label="Presets"></div>
+        <p id="pacingDesc" class="desc"></p>
+        <div id="savePresetRow" class="save-row" hidden>
+          <input id="presetName" type="text" maxlength="40" spellcheck="false" placeholder="Preset name">
+          <button id="presetSave" class="pill solid">Save</button>
+          <button id="presetCancel" class="pill">×</button>
+        </div>
+        <details class="knobs">
+          <summary>Nerd knobs</summary>
+          <label class="slider"><span>Mic sensitivity</span><output data-for="sensitivityDb"></output>
+            <input type="range" id="sensitivityDb" min="4" max="24" step="1"></label>
+          <label class="slider"><span>Ignore reactions shorter than</span><output data-for="minTalkSec"></output>
+            <input type="range" id="minTalkSec" min="0.3" max="3" step="0.1"></label>
+          <label class="slider"><span>Shortest shot</span><output data-for="minShotSec"></output>
+            <input type="range" id="minShotSec" min="0.5" max="8" step="0.5"></label>
+          <label class="slider"><span>Cut to wide after</span><output data-for="maxShotSec"></output>
+            <input type="range" id="maxShotSec" min="0" max="60" step="5"></label>
+          <label class="slider"><span>Wide shot length</span><output data-for="wideShotSec"></output>
+            <input type="range" id="wideShotSec" min="1" max="8" step="0.5"></label>
+          <label class="slider"><span>Cut before they talk</span><output data-for="leadInSec"></output>
+            <input type="range" id="leadInSec" min="0" max="1" step="0.05"></label>
+          <label class="switch-row"><input type="checkbox" id="overlapToWide"><span class="sw"></span> Talking over each other → wide</label>
+        </details>
+      </section>
+
+      <section class="sticker">
+        <h2><span class="num">3</span> How do you want it?</h2>
+        <div id="outputs" class="outputs" role="radiogroup" aria-label="Output style">
+          <button role="radio" data-output="hide"><i>👻</i><b>Hide</b><small>enable/disable angles</small></button>
+          <button role="radio" data-output="delete"><i>🔪</i><b>Razor</b><small>cut + delete unused</small></button>
+          <button role="radio" data-output="fast"><i>⚡</i><b>Fast cuts</b><small>real cuts, way faster</small></button>
+          <button role="radio" data-output="multicam"><i>🎛</i><b>Multicam</b><small>cut + angle markers</small></button>
+        </div>
+        <p id="outputDesc" class="desc"></p>
+      </section>
+
+      <section class="sticker">
+        <h2><span class="num">4</span> Do the thing</h2>
+        <span id="programMeta" class="scribble"></span>
+
+        <div id="meters" class="meters" hidden></div>
+
+        <div id="result" hidden>
+          <div class="preview-wrap">
+            <canvas id="preview" aria-label="Camera cuts across the episode, with a lane per speaker showing when they talk. Click to move the Premiere playhead."></canvas>
+            <span id="previewTip" class="preview-tip" hidden></span>
+          </div>
+          <div class="ruler"><span>0:00:00</span><span id="rulerMid"></span><span id="rulerEnd"></span></div>
+          <ul id="warnings" class="warnings" hidden></ul>
+          <p class="legend-title">Screen time</p>
+          <div id="legend" class="legend"></div>
+        </div>
+
+        <button id="analyze" class="big">LISTEN!</button>
+        <button id="apply" class="big go" hidden>CUT IT!</button>
+        <button id="reanalyze" class="link" hidden>listen again</button>
+      </section>
+    </main>
+  </section>
+
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
 
   <script src="js/engine.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/xmlcut.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/copy.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
