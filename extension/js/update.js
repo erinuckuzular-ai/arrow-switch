@@ -144,7 +144,7 @@
       var manifest = readManifest(fs.readFileSync(path.join(staging, 'CSXS', 'manifest.xml'), 'utf8'));
       if (manifest.id !== BUNDLE_ID) throw new Error('The download isn’t an Arrow Switch panel.');
       if (manifest.version !== update.version) throw new Error('Expected version ' + update.version + ' but the download is ' + manifest.version + '.');
-      if (!fs.existsSync(path.join(staging, 'META-INF', 'signature.xml'))) throw new Error('The download isn’t signed.');
+      if (!fs.existsSync(path.join(staging, 'META-INF', 'signatures.xml'))) throw new Error('The download isn’t signed.');
       if (process.platform !== 'win32') {
         try { fs.chmodSync(path.join(staging, 'bin', 'ffmpeg'), 0o755); } catch (e) { /* Windows build has no ffmpeg */ }
       }

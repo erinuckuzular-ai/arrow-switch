@@ -47,7 +47,7 @@ test('swaps a downloaded panel in place of the installed one', { skip: process.p
   fs.mkdirSync(path.join(src, 'CSXS'), { recursive: true });
   fs.mkdirSync(path.join(src, 'META-INF'));
   fs.writeFileSync(path.join(src, 'CSXS/manifest.xml'), 'ExtensionBundleId="com.arrow.switch" ExtensionBundleVersion="1.7.0"');
-  fs.writeFileSync(path.join(src, 'META-INF/signature.xml'), '<sig/>');
+  fs.writeFileSync(path.join(src, 'META-INF/signatures.xml'), '<sig/>');
   const zxp = path.join(dir, 'new.zxp');
   execFileSync('/usr/bin/ditto', ['-c', '-k', src, zxp]);
   const { PassThrough } = require('stream');
