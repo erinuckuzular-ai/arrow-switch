@@ -129,7 +129,7 @@ test('fixtures round-trip byte for byte and parse -> serialise -> parse is stabl
 
 test('parser keeps declaration, doctype, comments, CDATA and decodes entities', () => {
   const xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE xmeml>\n<!-- exported -->\n<xmeml version='4'>" +
-    '<a x="1 &amp; 2 &lt;3&gt; &quot;q&quot;" y=\'it&apos;s\'><![CDATA[<raw> & stuff]]>Chlo&#235; &#x26; Grace &gt; &#128512;<b/><c></c></a></xmeml>';
+    '<a x="1 &amp; 2 &lt;3&gt; &quot;q&quot;" y=\'it&apos;s\'><![CDATA[<raw> & stuff]]>Zo&#235; &#x26; Grace &gt; &#128512;<b/><c></c></a></xmeml>';
   const doc = X.parse(xml);
   assert.deepStrictEqual(doc.children.slice(0, 2), [
     { type: 'pi', value: 'xml version="1.0" encoding="UTF-8"' },
@@ -141,10 +141,10 @@ test('parser keeps declaration, doctype, comments, CDATA and decodes entities', 
   assert.strictEqual(X._getAttr(a, 'x'), '1 & 2 <3> "q"');
   assert.strictEqual(X._getAttr(a, 'y'), "it's");
   assert.deepStrictEqual(a.children[0], { type: 'cdata', value: '<raw> & stuff' });
-  assert.strictEqual(a.children[1].value, 'Chloë & Grace > \u{1F600}');
+  assert.strictEqual(a.children[1].value, 'Zoë & Grace > \u{1F600}');
   const out = X.serialize(doc);
   assert.ok(out.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<!-- exported -->'));
-  assert.ok(out.includes('<![CDATA[<raw> & stuff]]>Chloë &amp; Grace &gt; \u{1F600}<b/><c></c>'));
+  assert.ok(out.includes('<![CDATA[<raw> & stuff]]>Zoë &amp; Grace &gt; \u{1F600}<b/><c></c>'));
   assert.deepStrictEqual(X.parse(out), doc);
 });
 
@@ -209,12 +209,12 @@ test('file definition moves to the new first occurrence when the defining clip i
 });
 
 test('names with & < " and non-ASCII are escaped correctly', () => {
-  const newName = 'Chloë & Grace <"live"> – ep 12';
+  const newName = 'Zoë & Grace <"live"> – ep 12';
   const { xml } = X.rebuild(A, { segments: segsA, camTracks: [0, 1, 2], newName });
-  assert.ok(xml.includes('<name>Chloë &amp; Grace &lt;"live"&gt; – ep 12</name>'));
+  assert.ok(xml.includes('<name>Zoë &amp; Grace &lt;"live"&gt; – ep 12</name>'));
   const doc = X.parse(xml);
   assert.strictEqual(text(kid(seqOf(doc), 'name')), newName);
-  assert.strictEqual(X.listClips(doc, 3)[0].name, 'Lower third – Chloë & Grace <guest> "live"');
+  assert.strictEqual(X.listClips(doc, 3)[0].name, 'Lower third – Zoë & Grace <guest> "live"');
 });
 
 // --- rebuild: 29.97 NTSC, pre-cut camera track with gap + transition -----

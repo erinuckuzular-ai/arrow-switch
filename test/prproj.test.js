@@ -24,7 +24,7 @@ const xml = `<PremiereData Version="3">
 	<VideoClip ObjectID="545" ClassID="9308dbef" Version="11">
 		<Clip Version="18"><SelectedTrackIndex>0</SelectedTrackIndex><IsMulticam>true</IsMulticam></Clip>
 	</VideoClip>
-	<SubClip ObjectID="500"><Clip ObjectRef="600"/><Name>Chloë &amp; Grace</Name></SubClip>
+	<SubClip ObjectID="500"><Clip ObjectRef="600"/><Name>Susie &amp; Grace</Name></SubClip>
 	<VideoClip ObjectID="600"><Clip><SelectedTrackIndex>0</SelectedTrackIndex></Clip></VideoClip>
 </PremiereData>`;
 

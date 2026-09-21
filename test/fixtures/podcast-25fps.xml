@@ -8,7 +8,7 @@
 			<timebase>25</timebase>
 			<ntsc>FALSE</ntsc>
 		</rate>
-		<name>Episode 12 - Chloë &amp; Grace</name>
+		<name>Episode 12 - Zoë &amp; Grace</name>
 		<media>
 			<video>
 				<format>
@@ -303,7 +303,7 @@
 				<track TL.SQTrackShy="0" TL.SQTrackExpandedHeight="41" TL.SQTrackExpanded="0" MZ.TrackTargeted="0">
 					<clipitem id="clipitem-4">
 						<masterclipid>masterclip-4</masterclipid>
-						<name>Lower third – Chloë &amp; Grace &lt;guest&gt; "live"</name>
+						<name>Lower third – Zoë &amp; Grace &lt;guest&gt; "live"</name>
 						<enabled>TRUE</enabled>
 						<duration>107892</duration>
 						<rate>
@@ -321,7 +321,7 @@
 						<anamorphic>FALSE</anamorphic>
 						<file id="file-4">
 							<name>lower-third-susie&amp;grace.png</name>
-							<pathurl>file://localhost/Volumes/Media/Ep12/Graphics/lower-third-chlo%C3%AB%26grace.png</pathurl>
+							<pathurl>file://localhost/Volumes/Media/Ep12/Graphics/lower-third-zo%C3%AB%26grace.png</pathurl>
 							<rate>
 								<timebase>25</timebase>
 								<ntsc>FALSE</ntsc>
