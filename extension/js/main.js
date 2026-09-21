@@ -14,6 +14,7 @@
   var Presets = window.ArrowSwitchPresets;
   var Copy = window.ArrowSwitchCopy;
   var Prproj = window.ArrowSwitchPrproj;
+  var Update = window.ArrowSwitchUpdate;
   var IN_PREMIERE = !!window.__adobe_cep__;
   var nodeRequire = (window.cep_node && window.cep_node.require) || null;
   var WINDOW_SEC = Engine.DEFAULTS.windowSec;
@@ -312,8 +313,10 @@
   // ---------------------------------------------------------------- sequence + matching
 
   function loadSequence(quiet) {
-    return callHost('AC_getSequenceInfo').then(function (seq) {
-      var changed = !state.seq || state.seq.id !== seq.id;
+    return callHost('ASW_getSequenceInfo').then(function (seq) {
+      // A sequence counts as new when its id changes, or when the same sequence now reads
+      // differently (say it turned out to be a multicam), so who's-who is worked out again.
+      var changed = !state.seq || state.seq.id !== seq.id || layoutOf(state.seq) !== layoutOf(seq);
       state.seq = seq;
       $('seqLabel').textContent = seq.name;
       $('mcBadge').hidden = !seq.multicam;
@@ -367,16 +370,21 @@
     if (!state.seq) return;
     try {
       var maps = JSON.parse(storageGet(MAP_KEY) || '{}');
-      maps[state.seq.id] = { t: Date.now(), wideCam: state.wideCam, speakers: state.speakers };
+      maps[state.seq.id] = { t: Date.now(), layout: layoutOf(state.seq), wideCam: state.wideCam, speakers: state.speakers };
       var ids = Object.keys(maps).sort(function (a, b) { return maps[b].t - maps[a].t; });
       ids.slice(60).forEach(function (id) { delete maps[id]; });
       storageSet(MAP_KEY, JSON.stringify(maps));
     } catch (e) { /* storage unavailable */ }
   }
+  // Which tracks a mapping points at: only reuse a mapping on the same layout.
+  function layoutOf(seq) {
+    var names = function (tracks) { return tracks.map(function (tr) { return tr.name; }).join('|'); };
+    return (seq.multicam ? 'mc:' + seq.multicam.sourceId : 'seq') + '/' + names(seq.videoTracks) + '/' + names(seq.audioTracks);
+  }
   function rememberedMapping(seq) {
     try {
       var m = JSON.parse(storageGet(MAP_KEY) || '{}')[seq.id];
-      if (!m || !m.speakers || !m.speakers.length) return null;
+      if (!m || !m.speakers || !m.speakers.length || m.layout !== layoutOf(seq)) return null;
       var okA = function (i) { return i >= 0 && i < seq.audioTracks.length; };
       var okV = function (i) { return i >= -1 && i < seq.videoTracks.length; };
       if (!okV(m.wideCam) || !m.speakers.every(function (sp) { return okA(sp.audio) && okV(sp.video); })) return null;
@@ -777,7 +785,7 @@
     $('clips').querySelectorAll('.clip').forEach(function (b) {
       b.addEventListener('click', function () {
         var h = clips[Number(b.getAttribute('data-i'))];
-        callHost('AC_setPlayhead', h.start).then(function () { toast('Playhead at ' + timecode(h.start)); }).catch(sayError);
+        callHost('ASW_setPlayhead', h.start).then(function () { toast('Playhead at ' + timecode(h.start)); }).catch(sayError);
       });
     });
   }
@@ -876,7 +884,7 @@
     canvas.addEventListener('mouseleave', function () { tip.hidden = true; });
     canvas.addEventListener('click', function (e) {
       if (!state.segments) return;
-      callHost('AC_setPlayhead', secAt(e).sec).catch(sayError);
+      callHost('ASW_setPlayhead', secAt(e).sec).catch(sayError);
     });
   }
 
@@ -1026,7 +1034,7 @@
       .then(function () {
         $('analyze').hidden = true;
         if (IN_PREMIERE) ffmpeg = ffmpegPath();
-        return callHost('AC_getAudioClips', JSON.stringify(needed));
+        return callHost('ASW_getAudioClips', JSON.stringify(needed));
       })
       .then(function (res) {
         var totalWindows = Math.ceil(state.seq.durationSec / WINDOW_SEC);
@@ -1107,7 +1115,7 @@
           return { id: res.sequenceId, name: res.name, msg: t(output === 'fasthide' ? 'fastHideDone' : 'fastDone', { name: escapeHtml(res.name), secs: secs() }) };
         });
       } else {
-        run = callHost('AC_applyEdit', JSON.stringify({
+        run = callHost('ASW_applyEdit', JSON.stringify({
           sourceId: seq.id, newName: newName, mode: 'disable', tracks: involvedTracks(frames), segments: frames
         })).then(function (res) {
           if (res.originalUntouched === false) throw new Error(t('changedOriginal', { name: res.name }));
@@ -1141,7 +1149,7 @@
    */
   function multicamCut(frames, newName, secs) {
     var seq = state.seq;
-    return callHost('AC_applyMulticam', JSON.stringify({
+    return callHost('ASW_applyMulticam', JSON.stringify({
       sourceId: seq.id, newName: newName, trackIndex: seq.multicam.trackIndex, segments: frames
     })).then(function (res) {
       if (!res.count) throw new Error('I cut “' + res.name + '” but found no multicam pieces to switch.');
@@ -1149,10 +1157,10 @@
       say(t('multicamClosing'), 'cut');
       var names = {};
       Object.keys(res.pieces).forEach(function (tag) { names[tag] = res.pieces[tag].name; });
-      return callHost('AC_closeProject').then(function (closed) {
+      return callHost('ASW_closeProject').then(function (closed) {
         var outcome = { set: res.count, missing: [] };
         if (IN_PREMIERE) outcome = patchProjectAngles(closed.path, res.pieces);
-        return callHost('AC_reopenProject', JSON.stringify({ path: closed.path, sequenceId: res.sequenceId, names: names }))
+        return callHost('ASW_reopenProject', JSON.stringify({ path: closed.path, sequenceId: res.sequenceId, names: names }))
           .then(function () {
             var msg = outcome.missing.length
               ? t('multicamPartial', { count: outcome.set, name: escapeHtml(res.name), missing: outcome.missing.length })
@@ -1191,7 +1199,7 @@
         name: '🔥 Best clip ' + (i + 1), comment: h.reasons.join(', ')
       };
     });
-    return callHost('AC_addMarkers', JSON.stringify({ sequenceId: sequenceId, markers: markers })).then(function (r) { return r.added; });
+    return callHost('ASW_addMarkers', JSON.stringify({ sequenceId: sequenceId, markers: markers })).then(function (r) { return r.added; });
   }
 
   function fastCut(frames, newName, mode, trim) {
@@ -1204,7 +1212,7 @@
     }
     var segments = frames.map(function (s) { return { startFrame: s.startFrame + shift, endFrame: s.endFrame + shift, cam: s.cam }; });
     var removeRanges = (trim || []).map(function (r) { return { startFrame: r.startFrame + shift, endFrame: r.endFrame + shift }; });
-    if (!IN_PREMIERE) return callHost('AC_importXml', JSON.stringify({ name: newName }));
+    if (!IN_PREMIERE) return callHost('ASW_importXml', JSON.stringify({ name: newName }));
     if (!Xml) return Promise.reject(new Error('The XML module is missing. Reinstall Arrow Switch.'));
     var fs = nodeRequire('fs'), path = nodeRequire('path'), os = nodeRequire('os');
     var dir = path.join(os.tmpdir(), 'arrow-switch');
@@ -1212,10 +1220,10 @@
     var stamp = Date.now();
     var src = path.join(dir, 'source-' + stamp + '.xml');
     var out = path.join(dir, newName.replace(/[\\/:*?"<>|]/g, '-') + '.xml');
-    return callHost('AC_exportXml', JSON.stringify({ sequenceId: sequenceId, path: src })).then(function () {
+    return callHost('ASW_exportXml', JSON.stringify({ sequenceId: sequenceId, path: src })).then(function () {
       var rebuilt = Xml.rebuild(fs.readFileSync(src, 'utf8'), { segments: segments, camTracks: involvedTracks(frames), newName: newName, mode: mode, removeRanges: removeRanges });
       fs.writeFileSync(out, rebuilt.xml);
-      return callHost('AC_importXml', JSON.stringify({ path: out, name: newName }));
+      return callHost('ASW_importXml', JSON.stringify({ path: out, name: newName }));
     });
   }
 
@@ -1471,7 +1479,7 @@
           return { path: m.path, startSec: startOf[m.id], label: colour ? channel(j).label : -1, trackName: m.person };
         })
       };
-      return callHost('AC_buildEpisode', JSON.stringify(payload)).then(function (res) {
+      return callHost('ASW_buildEpisode', JSON.stringify(payload)).then(function (res) {
         var nc = camOrder.length;
         state.pendingMapping[res.sequenceId] = {
           wideCam: camOrder[0].role === 'wide' ? 0 : -1,
@@ -1514,7 +1522,7 @@
 
   function showLastRun() {
     if (!state.lastRun) return;
-    callHost('AC_openSequence', state.lastRun.id).then(function () { toast('Opened “' + state.lastRun.name + '” in Premiere'); }).catch(sayError);
+    callHost('ASW_openSequence', state.lastRun.id).then(function () { toast('Opened “' + state.lastRun.name + '” in Premiere'); }).catch(sayError);
   }
 
   // Undo = delete the sequence Arrow Switch made (the original was never touched). Two clicks.
@@ -1529,10 +1537,10 @@
     }
     btn.classList.remove('confirm');
     btn.textContent = 'Undo';
-    callHost('AC_deleteSequence', lr.id).then(function (res) {
+    callHost('ASW_deleteSequence', lr.id).then(function (res) {
       state.lastRun = null;
       renderLastRun();
-      if (lr.sourceId) callHost('AC_openSequence', lr.sourceId).catch(function () {});
+      if (lr.sourceId) callHost('ASW_openSequence', lr.sourceId).catch(function () {});
       toast(ui.tone === 'mean' ? 'Deleted “' + res.name + '”. Like it never happened.' : 'Deleted “' + res.name + '”.');
     }).catch(sayError);
   }
@@ -1543,7 +1551,7 @@
     if (followTimer) return;
     followTimer = setInterval(function () {
       if (document.hidden || state.busy || state.setup.busy || ui.tab !== 'cut') return;
-      callHost('AC_getActiveSequenceId').then(function (res) {
+      callHost('ASW_getActiveSequenceId').then(function (res) {
         if (!res.id || (state.seq && res.id === state.seq.id) || state.created[res.id]) return;
         return loadSequence(true).then(function () {
           if (state.seq && state.seq.id === res.id) toast('Now on “' + res.name + '”');
@@ -1709,7 +1717,7 @@
     // Setup
     $('dropZone').addEventListener('click', pickFiles);
     $('grabSelection').addEventListener('click', function () {
-      callHost('AC_getProjectSelection').then(function (res) {
+      callHost('ASW_getProjectSelection').then(function (res) {
         if (!res.files.length) return say(ui.tone === 'mean' ? 'Nothing selected in the Project panel. Select some clips first, genius.' : 'Select some clips in the Project panel first.', 'error');
         addFiles(res.files.map(function (f) { return f.path; }));
       }).catch(sayError);
@@ -1750,7 +1758,7 @@
   // ---------------------------------------------------------------- demo mode (browser preview)
 
   var Demo = {
-    AC_getSequenceInfo: function () {
+    ASW_getSequenceInfo: function () {
       if (DEMO_STATE === 'empty') return { ok: false, error: 'Open a sequence first.' };
       var mc = DEMO_MC ? { sourceId: 'demo-src', sourceName: 'EP 142 Multicam Source', isMulticam: true, trackIndex: 0, pieces: [{ start: 0, end: 3312, inPoint: 0 }] } : null;
       return {
@@ -1767,21 +1775,21 @@
         ]
       };
     },
-    AC_getAudioClips: function (json) {
+    ASW_getAudioClips: function (json) {
       return { ok: true, tracks: JSON.parse(json).map(function (i) { return { index: i, clips: [{}, {}, {}, {}] }; }) };
     },
-    AC_applyEdit: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut', saved: true, originalUntouched: true }; },
-    AC_applyMulticam: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', sequenceId: 'demo', projectPath: '/demo.prproj', count: 281, razors: 280, pieces: { ASWITCH_1_0: { angle: 1, name: 'EP 142' } } }; },
-    AC_closeProject: function () { return { ok: true, path: '/demo.prproj' }; },
-    AC_reopenProject: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', restored: 0 }; },
-    AC_importXml: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut' }; },
-    AC_getActiveSequenceId: function () { return { ok: true, id: 'demo', name: 'EP 142 Multicam' }; },
-    AC_openSequence: function () { return { ok: true, name: 'EP 142' }; },
-    AC_deleteSequence: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
-    AC_setPlayhead: function () { return { ok: true }; },
-    AC_addMarkers: function (p) { return { ok: true, added: JSON.parse(p).markers.length }; },
-    AC_getProjectSelection: function () { return { ok: true, files: [] }; },
-    AC_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Susie x Grace', misplaced: [] }; },
+    ASW_applyEdit: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut', saved: true, originalUntouched: true }; },
+    ASW_applyMulticam: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', sequenceId: 'demo', projectPath: '/demo.prproj', count: 281, razors: 280, pieces: { ASWITCH_1_0: { angle: 1, name: 'EP 142' } } }; },
+    ASW_closeProject: function () { return { ok: true, path: '/demo.prproj' }; },
+    ASW_reopenProject: function () { return { ok: true, name: 'EP 142 Edit – Arrow Switch', restored: 0 }; },
+    ASW_importXml: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch', sequenceId: 'demo-cut' }; },
+    ASW_getActiveSequenceId: function () { return { ok: true, id: 'demo', name: 'EP 142 Multicam' }; },
+    ASW_openSequence: function () { return { ok: true, name: 'EP 142' }; },
+    ASW_deleteSequence: function () { return { ok: true, name: 'EP 142 Multicam – Arrow Switch' }; },
+    ASW_setPlayhead: function () { return { ok: true }; },
+    ASW_addMarkers: function (p) { return { ok: true, added: JSON.parse(p).markers.length }; },
+    ASW_getProjectSelection: function () { return { ok: true, files: [] }; },
+    ASW_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Susie x Grace', misplaced: [] }; },
     fakeFiles: function () {
       return ['/Volumes/Shoot/EP143/WIDE_A001.mov', '/Volumes/Shoot/EP143/CAM_B_Susie.mov', '/Volumes/Shoot/EP143/CAM_C_Grace.mov',
         '/Volumes/Shoot/EP143/Susie.wav', '/Volumes/Shoot/EP143/Grace.wav'];
@@ -1853,6 +1861,102 @@
     }
   };
 
+  // ---------------------------------------------------------------- updates
+
+  // Checks GitHub at most every few hours; a newer release shows the update bar, and
+  // Update swaps the new panel in (see update.js). Premiere loads it on its next start.
+  var UPDATE_KEY = 'arrow-switch-update';
+  var UPDATE_EVERY_MS = 6 * 3600 * 1000;
+  var pendingUpdate = null;
+
+  function installedVersion() {
+    var fs = nodeRequire('fs'), path = nodeRequire('path');
+    return Update.readManifest(fs.readFileSync(path.join(extensionPath(), 'CSXS', 'manifest.xml'), 'utf8')).version;
+  }
+
+  function showUpdate(update) {
+    pendingUpdate = update;
+    $('updateTitle').textContent = 'Arrow Switch ' + update.version + ' is out';
+    $('updateNote').textContent = ui.tone === 'mean' ? 'Newer, shinier, fewer of my mistakes.' : 'A newer version is ready to install.';
+    $('updateGo').textContent = 'Update';
+    $('updateGo').disabled = false;
+    $('updateGo').hidden = false;
+    $('updateLater').hidden = false;
+    $('updateBar').hidden = false;
+  }
+
+  function checkForUpdates() {
+    if (!Update) return;
+    if (!IN_PREMIERE) {
+      if (/[?&]update=1/.test(location.search)) showUpdate({ version: '9.9.9', url: 'demo' });
+      return;
+    }
+    if (!nodeRequire) return;
+    var current;
+    try { current = installedVersion(); } catch (e) { return; }
+    var memo = {};
+    try { memo = JSON.parse(storageGet(UPDATE_KEY) || '{}'); } catch (e) { /* fresh */ }
+    var snoozed = function (u) { return memo.later && memo.later.version === u.version && Date.now() < memo.later.until; };
+    if (memo.update && Update.compareVersions(memo.update.version, current) > 0 && !snoozed(memo.update)) {
+      showUpdate(memo.update);
+    }
+    if (memo.t && Date.now() - memo.t < UPDATE_EVERY_MS) return;
+    Update.check(nodeRequire, current).then(function (update) {
+      memo.t = Date.now();
+      memo.update = update;
+      storageSet(UPDATE_KEY, JSON.stringify(memo));
+      if (update && !snoozed(update)) showUpdate(update);
+    }).catch(function () { /* offline: try again next time */ });
+  }
+
+  function runUpdate() {
+    var update = pendingUpdate;
+    if (!update || state.busy) return;
+    if (!IN_PREMIERE) {
+      $('updateTitle').textContent = 'Updated to ' + update.version;
+      $('updateNote').textContent = 'Restart Premiere to use it.';
+      $('updateGo').hidden = true;
+      $('updateLater').hidden = true;
+      return;
+    }
+    var extDir = extensionPath();
+    // Installed for everyone (the .pkg) or no .zxp on the release: send them to the download.
+    if (!update.url || !Update.canSelfUpdate(nodeRequire, extDir)) {
+      window.cep.util.openURLInDefaultBrowser(Update.DOWNLOAD_PAGE);
+      return;
+    }
+    $('updateGo').disabled = true;
+    $('updateLater').hidden = true;
+    $('updateGo').textContent = 'Downloading…';
+    Update.install(nodeRequire, update, extDir, function (f) {
+      $('updateGo').textContent = Math.round(f * 100) + '%';
+    }).then(function (done) {
+      var memo = {};
+      try { memo = JSON.parse(storageGet(UPDATE_KEY) || '{}'); } catch (e) { /* fresh */ }
+      memo.update = null;
+      storageSet(UPDATE_KEY, JSON.stringify(memo));
+      $('updateTitle').textContent = 'Updated to ' + done.version;
+      $('updateNote').textContent = 'Restart Premiere to use it.';
+      $('updateGo').hidden = true;
+      say(ui.tone === 'mean' ? 'Updated myself. Restart Premiere and meet the new me.' : 'Updated to ' + done.version + '. Restart Premiere to use it.', 'done');
+    }).catch(function (err) {
+      $('updateGo').disabled = false;
+      $('updateGo').textContent = 'Try again';
+      $('updateLater').hidden = false;
+      $('updateNote').textContent = 'Couldn’t update: ' + (err && err.message ? err.message : err);
+    });
+  }
+
+  $('updateGo').addEventListener('click', runUpdate);
+  $('updateLater').addEventListener('click', function () {
+    // Later = quiet about this version for three days.
+    var memo = {};
+    try { memo = JSON.parse(storageGet(UPDATE_KEY) || '{}'); } catch (e) { /* fresh */ }
+    if (pendingUpdate) memo.later = { version: pendingUpdate.version, until: Date.now() + 3 * 86400 * 1000 };
+    storageSet(UPDATE_KEY, JSON.stringify(memo));
+    $('updateBar').hidden = true;
+  });
+
   // ---------------------------------------------------------------- start
 
   loadSettings();
@@ -1866,6 +1970,7 @@
   loadSequence(true).then(function () {
     showTab(startTab);
     if (IN_PREMIERE) startFollowing();
+    checkForUpdates();
     if (!state.seq && startTab === 'cut' && IN_PREMIERE) showTab('cut');
     if (DEMO_STATE === 'analyzing' || DEMO_STATE === 'result') return analyze();
     if (DEMO_STATE === 'done') return analyze().then(apply);

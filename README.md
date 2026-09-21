@@ -27,6 +27,9 @@ by Gatekeeper.
 
 Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
 
+**Updates** arrive in the panel: when a new version is out, a bar at the top offers
+**Update**. It downloads and installs the new panel; restart Premiere to use it.
+
 **Set up a new episode** (Set up tab)
 1. Drop in the camera files (with their master audio) and each person's mic file. Arrow Switch
    works out which is which; set the wide shot and who each camera shows.
@@ -67,9 +70,9 @@ Arrow Switch always saves your project first and works on a new sequence
 (`<name> – Arrow Switch`); your original is never changed. ⌘/Ctrl+Enter does the next step.
 Theme (auto/light/dark) and tone (mean/nice) are the two buttons top right.
 
-Windows: the disk image's **Everything else** folder holds `Arrow Switch.zxp`; install it with a
-ZXP installer and put `ffmpeg.exe` in the extension's `bin` folder. That folder also holds the
-`.pkg`, the uninstaller and the licences.
+Windows: download `Arrow-Switch-<version>.zxp` from the [latest release](https://github.com/erinuckuzular-ai/arrow-switch/releases/latest)
+(it's also in the disk image's **Everything else** folder), install it with a ZXP installer and put
+`ffmpeg.exe` in the extension's `bin` folder.
 
 ## For developers
 
@@ -84,6 +87,7 @@ extension/            the CEP panel that ships to users
   js/prproj.js        real multicam angles: sets SelectedTrackIndex in the project file
   js/presets.js       built-in + saved presets
   js/copy.js          everything the mascot says, mean and nice
+  js/update.js        in-panel updates: checks the latest GitHub release, swaps in its .zxp
   js/main.js          UI logic; runs in demo mode when opened in a normal browser
                       (?state=empty|analyzing|result|done|setup|syncing|synced, &theme=dark, &mc=1, &tone=nice)
   fonts/              Lilita One + Nunito (SIL OFL), bundled so it works offline
@@ -172,6 +176,10 @@ The bundled ffmpeg is a GPLv3 build. Arrow Switch runs it as a separate program,
 release ships `licenses/` (GPL text + `FFMPEG-NOTICE.txt`) in the extension and the DMG.
 `build.sh` also drops the ffmpeg source and its build scripts into `dist/`: **attach
 `ffmpeg-9.0.1.tar.xz` and `ffmpeg-build-script.tar.gz` to every GitHub release** next to the DMG.
+
+Also attach `Arrow-Switch-<version>.zxp` from `dist/`: the panel's updater installs that file,
+and Windows users download it. Tag releases `v<version>` (the updater compares that tag with
+`ExtensionBundleVersion`).
 If you swap in a different ffmpeg build, update `FFMPEG_VERSION` in `build.sh` and the notice.
 
 Fonts: Lilita One and Nunito, SIL Open Font License 1.1 (`extension/fonts/FONTS-LICENSE.txt`).

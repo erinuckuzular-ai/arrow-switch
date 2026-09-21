@@ -112,6 +112,38 @@ enum Phase: Equatable {
 
     func revealInstall() { NSWorkspace.shared.activateFileViewerSelecting([dest]) }
 
+    // MARK: Old copies installed for everyone
+
+    // The .pkg (and the first Arrow AutoCut builds) installed into /Library, which this app
+    // can't touch without a password. An old copy there loads alongside the new panel, so
+    // offer to remove it; the new panel works either way.
+    enum Cleanup: Equatable { case idle, removing, removed, failed }
+    @Published var cleanup: Cleanup = .idle
+
+    var systemLeftovers: [String] {
+        let root = "/Library/Application Support/Adobe/CEP/extensions/"
+        return ["com.arrow.autocut", "com.arrow.switch"]
+            .map { root + $0 }
+            .filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    func removeSystemLeftovers() {
+        let paths = systemLeftovers
+        guard !paths.isEmpty else { cleanup = .removed; return }
+        cleanup = .removing
+        let rm = paths.map { "rm -rf '\($0)'" }.joined(separator: "; ")
+            + "; pkgutil --forget com.arrow.autocut.pkg >/dev/null 2>&1"
+            + "; pkgutil --forget com.arrow.switch.pkg >/dev/null 2>&1; true"
+        let source = "do shell script \"\(rm)\" with administrator privileges"
+        Task.detached {
+            var error: NSDictionary?
+            NSAppleScript(source: source)?.executeAndReturnError(&error)
+            await MainActor.run {
+                self.cleanup = self.systemLeftovers.isEmpty ? .removed : .failed
+            }
+        }
+    }
+
     private struct Err: LocalizedError {
         let msg: String
         init(_ m: String) { msg = m }

@@ -331,13 +331,13 @@
         takes seconds. It's run by a talking microphone, and it will be rude to you.
       </p>
       <div class="dl-block" id="download">
-        <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.0/Arrow-Switch-1.6.0.dmg" data-dl>
+        <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.1/Arrow-Switch-1.6.1.dmg" data-dl>
           <span class="arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13M6 11l6 6 6-6M5 21h14"/></svg>
           </span>
           <span>
             <span class="label">DOWNLOAD</span>
-            <span class="meta" data-dl-meta>For Mac · version 1.6.0 · 180 MB</span>
+            <span class="meta" data-dl-meta>For Mac · version 1.6.1 · 180 MB</span>
           </span>
         </a>
         <div class="dl-notes">
@@ -456,7 +456,7 @@
       <div class="step">
         <div>
           <h3>Download it</h3>
-          <p>Hit the <a class="inline-dl" href="#download" data-dl>download button</a>. You get <span class="path">Arrow-Switch-1.6.0.dmg</span> in your Downloads folder.</p>
+          <p>Hit the <a class="inline-dl" href="#download" data-dl>download button</a>. You get <span class="path">Arrow-Switch-1.6.1.dmg</span> in your Downloads folder.</p>
         </div>
       </div>
       <div class="step">
@@ -488,8 +488,8 @@
       <div class="alt-card" id="windows">
         <h3>On Windows?</h3>
         <p>
-          Open the disk image's <b>Everything else</b> folder and take <span class="path">Arrow Switch.zxp</span>.
-          Install it with a ZXP installer such as <a href="https://aescripts.com/learn/zxp-installer/">aescripts ZXP Installer</a>,
+          Download <a href="https://github.com/erinuckuzular-ai/arrow-switch/releases/latest" data-zxp><span class="path">Arrow-Switch.zxp</span></a>
+          and install it with a ZXP installer such as <a href="https://aescripts.com/learn/zxp-installer/">aescripts ZXP Installer</a>,
           then put <span class="path">ffmpeg.exe</span> in the extension's <span class="path">bin</span> folder.
         </p>
       </div>
@@ -565,7 +565,8 @@
       </details>
       <details>
         <summary>How do I update?</summary>
-        <p>Download the new version and run the installer again. It replaces the old panel, and the button says <b>UPDATE IT!</b> instead.</p>
+        <p>You don't need to come back here. When a new version is out, a bar at the top of the panel offers <b>Update</b>. Press it, then restart Premiere.</p>
+        <p>You can also download the new version and run the installer again; the button says <b>UPDATE IT!</b> instead.</p>
       </details>
       <details>
         <summary>How do I uninstall it?</summary>
@@ -592,13 +593,13 @@
     <h2>Go on then.</h2>
     <p class="lede" style="margin-left:auto;margin-right:auto">Your next episode could be cut before your coffee's cool.</p>
     <div class="dl-block">
-      <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.0/Arrow-Switch-1.6.0.dmg" data-dl>
+      <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.1/Arrow-Switch-1.6.1.dmg" data-dl>
         <span class="arrow">
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13M6 11l6 6 6-6M5 21h14"/></svg>
         </span>
         <span>
           <span class="label">DOWNLOAD</span>
-          <span class="meta" data-dl-meta>For Mac · version 1.6.0 · 180 MB</span>
+          <span class="meta" data-dl-meta>For Mac · version 1.6.1 · 180 MB</span>
         </span>
       </a>
     </div>
@@ -621,13 +622,18 @@
   if (location.hash === '#og') document.documentElement.classList.add('og');
 
   // Point every download link at the newest release's .dmg. The hard-coded
-  // v1.6.0 link stays if GitHub's API can't be reached.
+  // v1.6.1 link stays if GitHub's API can't be reached.
   (function () {
     var API = 'https://api.github.com/repos/erinuckuzular-ai/arrow-switch/releases/latest';
     fetch(API, { headers: { Accept: 'application/vnd.github+json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (rel) {
         if (!rel) return;
+        var zxp = (rel.assets || []).filter(function (a) { return /\.zxp$/i.test(a.name); })[0];
+        if (zxp) document.querySelectorAll('[data-zxp]').forEach(function (a) {
+          a.href = zxp.browser_download_url;
+          a.querySelector('.path').textContent = zxp.name;
+        });
         var dmg = (rel.assets || []).filter(function (a) { return /\.dmg$/i.test(a.name); })[0];
         if (!dmg) return;
         var version = String(rel.tag_name || '').replace(/^v/, '');

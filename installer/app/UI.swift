@@ -162,6 +162,10 @@ struct RootView: View {
             }
             .padding(.top, 24)
 
+            if !installer.systemLeftovers.isEmpty || installer.cleanup != .idle {
+                leftovers.padding(.top, 20)
+            }
+
             Spacer()
 
             HStack(spacing: 14) {
@@ -172,6 +176,43 @@ struct RootView: View {
                     .foregroundStyle(Color.ink.opacity(0.5))
             }
         }
+    }
+
+    // An old copy installed for everyone on this Mac: offer to clear it out.
+    private var leftovers: some View {
+        HStack(alignment: .center, spacing: 12) {
+            switch installer.cleanup {
+            case .removed:
+                Text("Old copy removed. Tidy.")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.ink.opacity(0.7))
+            default:
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("There's an old copy installed for everyone on this Mac.")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    Text(installer.cleanup == .failed
+                         ? "Couldn't remove it. Try again, or run the uninstaller in Everything else."
+                         : "It shows up as a second panel. Removing it asks for your password once.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.ink.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(Color.ink)
+                Spacer(minLength: 8)
+                Button(installer.cleanup == .removing ? "Removing…" : "Remove it") {
+                    installer.removeSystemLeftovers()
+                }
+                .disabled(installer.cleanup == .removing)
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Capsule().fill(Color.lilacDeep))
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.55)))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.ink.opacity(0.1)))
     }
 
     private func failed(_ message: String) -> some View {

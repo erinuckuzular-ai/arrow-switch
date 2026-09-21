@@ -98,6 +98,8 @@ if [ "${SKIP_ZXP_SIGN:-0}" != "1" ]; then
   "$SIGNER" -sign "$STAGE" "$ZXP" "$CERT" "$PASS" -tsa http://timestamp.digicert.com \
     || "$SIGNER" -sign "$STAGE" "$ZXP" "$CERT" "$PASS"
   "$SIGNER" -verify "$ZXP"
+  # Released on its own too: Windows installs it, and the panel's updater downloads it.
+  cp "$ZXP" "$DIST/Arrow-Switch-$VERSION.zxp"
   unzip -q "$ZXP" -d "$PAYLOAD"
 else
   step "Skipping ZXP signing (installer will enable CEP debug mode)"

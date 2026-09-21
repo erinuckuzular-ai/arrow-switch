@@ -1,11 +1,16 @@
 /*
  * Arrow Switch — Premiere Pro ExtendScript host.
  * Every entry point returns a JSON string: { ok: true, ... } or { ok: false, error }.
+ *
+ * Premiere runs every extension's ExtendScript in one shared global scope, so these names
+ * must not clash with anyone else's. The old Arrow AutoCut used AC_ and, when it was still
+ * installed, its older functions replaced ours (multicam detection went missing). Keep the
+ * ASW_ prefix unique.
  */
 
-var AC_TICKS_PER_SECOND = 254016000000;
+var ASW_TICKS_PER_SECOND = 254016000000;
 
-function AC_json(v) {
+function ASW_json(v) {
   if (v === null || v === undefined) return 'null';
   var t = typeof v;
   if (t === 'number') return isFinite(v) ? String(v) : 'null';
@@ -15,28 +20,28 @@ function AC_json(v) {
   }
   if (v instanceof Array) {
     var a = [];
-    for (var i = 0; i < v.length; i++) a.push(AC_json(v[i]));
+    for (var i = 0; i < v.length; i++) a.push(ASW_json(v[i]));
     return '[' + a.join(',') + ']';
   }
   var parts = [];
-  for (var k in v) if (v.hasOwnProperty(k)) parts.push(AC_json(k) + ':' + AC_json(v[k]));
+  for (var k in v) if (v.hasOwnProperty(k)) parts.push(ASW_json(k) + ':' + ASW_json(v[k]));
   return '{' + parts.join(',') + '}';
 }
 
-function AC_parse(s) {
+function ASW_parse(s) {
   // Input only ever comes from our own panel.
   return eval('(' + s + ')');
 }
 
-function AC_run(fn) {
+function ASW_run(fn) {
   try {
-    return AC_json(fn());
+    return ASW_json(fn());
   } catch (e) {
-    return AC_json({ ok: false, error: String(e) + (e.line ? ' (line ' + e.line + ')' : '') });
+    return ASW_json({ ok: false, error: String(e) + (e.line ? ' (line ' + e.line + ')' : '') });
   }
 }
 
-function AC_trackInfo(tracks) {
+function ASW_trackInfo(tracks) {
   var out = [];
   for (var i = 0; i < tracks.numTracks; i++) {
     var t = tracks[i];
@@ -64,7 +69,7 @@ function AC_trackInfo(tracks) {
   return out;
 }
 
-function AC_sequenceById(id) {
+function ASW_sequenceById(id) {
   for (var i = 0; i < app.project.sequences.numSequences; i++) {
     if (app.project.sequences[i].sequenceID === id) return app.project.sequences[i];
   }
@@ -72,8 +77,8 @@ function AC_sequenceById(id) {
 }
 
 // The sequence the panel analysed, made active again (the user may have clicked elsewhere).
-function AC_activate(id) {
-  var seq = AC_sequenceById(id);
+function ASW_activate(id) {
+  var seq = ASW_sequenceById(id);
   if (!seq) return null;
   var active = app.project.activeSequence;
   if (!active || active.sequenceID !== id) {
@@ -83,7 +88,7 @@ function AC_activate(id) {
   return seq;
 }
 
-function AC_sequenceForItem(item) {
+function ASW_sequenceForItem(item) {
   if (!item) return null;
   for (var i = 0; i < app.project.sequences.numSequences; i++) {
     var s = app.project.sequences[i];
@@ -97,9 +102,9 @@ function AC_sequenceForItem(item) {
  * the real angles and mics live inside the source sequence, so that's what we analyse.
  * Returns null unless most of the sequence is pieces of a single source sequence.
  */
-function AC_findMulticam(seq) {
+function ASW_findMulticam(seq) {
   var best = null;
-  var total = Number(seq.end) / AC_TICKS_PER_SECOND;
+  var total = Number(seq.end) / ASW_TICKS_PER_SECOND;
   for (var v = 0; v < seq.videoTracks.numTracks; v++) {
     var clips = seq.videoTracks[v].clips;
     var bySource = {};
@@ -111,7 +116,7 @@ function AC_findMulticam(seq) {
       try { isMc = !!item.isMulticamClip(); } catch (e) { /* older Premiere */ }
       try { isSeq = !!item.isSequence(); } catch (e2) { /* older Premiere */ }
       if (!isMc && !isSeq) continue;
-      var src = AC_sequenceForItem(item);
+      var src = ASW_sequenceForItem(item);
       if (!src) continue;
       var entry = bySource[src.sequenceID] = bySource[src.sequenceID] || { source: src, multicam: isMc, pieces: [], covered: 0 };
       entry.pieces.push({ start: clip.start.seconds, end: clip.end.seconds, inPoint: clip.inPoint.seconds });
@@ -128,25 +133,25 @@ function AC_findMulticam(seq) {
   return best;
 }
 
-function AC_fps(seq) {
-  return AC_TICKS_PER_SECOND / Number(seq.timebase);
+function ASW_fps(seq) {
+  return ASW_TICKS_PER_SECOND / Number(seq.timebase);
 }
 
-function AC_getSequenceInfo() {
-  return AC_run(function () {
+function ASW_getSequenceInfo() {
+  return ASW_run(function () {
     var seq = app.project.activeSequence;
     if (!seq) return { ok: false, error: 'Open a sequence first.' };
     var info = {
       ok: true,
       id: seq.sequenceID,
       name: seq.name,
-      fps: AC_fps(seq),
-      durationSec: Number(seq.end) / AC_TICKS_PER_SECOND,
-      videoTracks: AC_trackInfo(seq.videoTracks),
-      audioTracks: AC_trackInfo(seq.audioTracks),
+      fps: ASW_fps(seq),
+      durationSec: Number(seq.end) / ASW_TICKS_PER_SECOND,
+      videoTracks: ASW_trackInfo(seq.videoTracks),
+      audioTracks: ASW_trackInfo(seq.audioTracks),
       multicam: null
     };
-    var mc = AC_findMulticam(seq);
+    var mc = ASW_findMulticam(seq);
     if (mc) {
       // Angles = the source sequence's video tracks (angle 1 = V1), mics = its audio tracks.
       info.multicam = {
@@ -156,33 +161,33 @@ function AC_getSequenceInfo() {
         trackIndex: mc.trackIndex,
         pieces: mc.pieces
       };
-      info.videoTracks = AC_trackInfo(mc.source.videoTracks);
-      info.audioTracks = AC_trackInfo(mc.source.audioTracks);
+      info.videoTracks = ASW_trackInfo(mc.source.videoTracks);
+      info.audioTracks = ASW_trackInfo(mc.source.audioTracks);
     }
     return info;
   });
 }
 
 // Cheap check the panel polls to follow whatever sequence the editor is looking at.
-function AC_getActiveSequenceId() {
-  return AC_run(function () {
+function ASW_getActiveSequenceId() {
+  return ASW_run(function () {
     var seq = app.project && app.project.activeSequence;
     return { ok: true, id: seq ? seq.sequenceID : null, name: seq ? seq.name : null };
   });
 }
 
-function AC_openSequence(id) {
-  return AC_run(function () {
-    var seq = AC_activate(id);
+function ASW_openSequence(id) {
+  return ASW_run(function () {
+    var seq = ASW_activate(id);
     if (!seq) return { ok: false, error: 'That sequence isn’t in the project any more.' };
     return { ok: true, name: seq.name };
   });
 }
 
 // Undo for the panel's last run: only ever called with a sequence Arrow Switch created.
-function AC_deleteSequence(id) {
-  return AC_run(function () {
-    var seq = AC_sequenceById(id);
+function ASW_deleteSequence(id) {
+  return ASW_run(function () {
+    var seq = ASW_sequenceById(id);
     if (!seq) return { ok: false, error: 'That sequence is already gone.' };
     var name = seq.name;
     if (!app.project.deleteSequence(seq)) return { ok: false, error: 'Premiere wouldn’t delete “' + name + '”.' };
@@ -190,12 +195,12 @@ function AC_deleteSequence(id) {
   });
 }
 
-function AC_getAudioClips(indexesJson) {
-  return AC_run(function () {
+function ASW_getAudioClips(indexesJson) {
+  return ASW_run(function () {
     var seq = app.project.activeSequence;
     if (!seq) return { ok: false, error: 'Open a sequence first.' };
-    var indexes = AC_parse(indexesJson);
-    var mc = AC_findMulticam(seq);
+    var indexes = ASW_parse(indexesJson);
+    var mc = ASW_findMulticam(seq);
     var from = mc ? mc.source : seq;
     var tracks = [];
     for (var i = 0; i < indexes.length; i++) {
@@ -235,13 +240,13 @@ function AC_getAudioClips(indexesJson) {
 }
 
 // getSettings() is slow in ExtendScript: callers fetch it once and pass it in.
-function AC_timecode(seq, settings, frame) {
+function ASW_timecode(seq, settings, frame) {
   var t = new Time();
   t.ticks = String(frame * Number(seq.timebase));
   try {
     return t.getFormatted(settings.videoFrameRate, settings.videoDisplayFormat);
   } catch (e) {
-    var fps = Math.round(AC_fps(seq));
+    var fps = Math.round(ASW_fps(seq));
     var pad = function (n) { return (n < 10 ? '0' : '') + n; };
     var f = frame % fps, s = Math.floor(frame / fps);
     return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60) + ':' + pad(f);
@@ -255,18 +260,18 @@ function AC_timecode(seq, settings, frame) {
  *   segments: [{ startFrame, endFrame, cam }]   cam = video track index
  * }
  */
-function AC_applyEdit(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
-    var source = AC_activate(p.sourceId);
+function ASW_applyEdit(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
+    var source = ASW_activate(p.sourceId);
     if (!source) return { ok: false, error: 'I can’t find the sequence I listened to any more. Hit LISTEN again.' };
 
-    var originalPrint = AC_fingerprint(source, p.tracks);
-    var copy = AC_saveAndClone(source, p.newName);
+    var originalPrint = ASW_fingerprint(source, p.tracks);
+    var copy = ASW_saveAndClone(source, p.newName);
     if (copy.error) return { ok: false, error: copy.error };
     var seq = copy.seq, qeSeq = copy.qeSeq, saved = copy.saved;
 
-    var fps = AC_fps(seq);
+    var fps = ASW_fps(seq);
     var settings = seq.getSettings();
     var segs = p.segments;
     var razors = 0;
@@ -278,7 +283,7 @@ function AC_applyEdit(payloadJson) {
     // Only the outgoing and incoming angles change at a cut; every other track keeps
     // the same on/off state, so razoring it would just add work and timeline clutter.
     for (var s = 1; s < segs.length; s++) {
-      var tc = AC_timecode(seq, settings, segs[s].startFrame);
+      var tc = ASW_timecode(seq, settings, segs[s].startFrame);
       var pair = [segs[s - 1].cam, segs[s].cam];
       for (var q = 0; q < pair.length; q++) {
         if (!involved[pair[q]] || (q === 1 && pair[1] === pair[0])) continue;
@@ -295,7 +300,7 @@ function AC_applyEdit(payloadJson) {
       for (var c = 0; c < clips.numItems; c++) {
         var clip = clips[c];
         var midFrame = Math.floor(((clip.start.seconds + clip.end.seconds) / 2) * fps);
-        var seg = AC_findSegment(segs, midFrame);
+        var seg = ASW_findSegment(segs, midFrame);
         var visible = !seg || seg.cam === trackIndex;
         if (p.mode === 'delete') {
           if (!visible) toRemove.push(clip);
@@ -307,17 +312,17 @@ function AC_applyEdit(payloadJson) {
       for (var r = toRemove.length - 1; r >= 0; r--) toRemove[r].remove(false, false);
     }
 
-    var untouched = AC_fingerprint(source, p.tracks) === originalPrint;
+    var untouched = ASW_fingerprint(source, p.tracks) === originalPrint;
     return { ok: true, name: seq.name, sequenceId: seq.sequenceID, razors: razors, hidden: hidden, shown: shown, saved: saved, originalUntouched: untouched };
   });
 }
 
 // Saves the project, then duplicates `source` under a unique name and makes the copy the
 // active sequence (QE razors only work on the active one). The original is never cut.
-function AC_saveAndClone(source, baseName) {
+function ASW_saveAndClone(source, baseName) {
   var saved = false;
   try { app.project.save(); saved = true; } catch (e) { /* unsaved new project: carry on, original is still untouched */ }
-  var newName = AC_uniqueSequenceName(baseName);
+  var newName = ASW_uniqueSequenceName(baseName);
   var before = {};
   for (var i = 0; i < app.project.sequences.numSequences; i++) before[app.project.sequences[i].sequenceID] = true;
   source.clone();
@@ -337,7 +342,7 @@ function AC_saveAndClone(source, baseName) {
   return { seq: seq, qeSeq: qeSeq, saved: saved };
 }
 
-function AC_uniqueSequenceName(base, ignoreId) {
+function ASW_uniqueSequenceName(base, ignoreId) {
   var names = {};
   for (var i = 0; i < app.project.sequences.numSequences; i++) {
     if (app.project.sequences[i].sequenceID !== ignoreId) names[app.project.sequences[i].name] = true;
@@ -347,9 +352,9 @@ function AC_uniqueSequenceName(base, ignoreId) {
   return name;
 }
 
-function AC_secondsTime(sec) {
+function ASW_secondsTime(sec) {
   var t = new Time();
-  t.ticks = String(Math.round(sec * AC_TICKS_PER_SECOND));
+  t.ticks = String(Math.round(sec * ASW_TICKS_PER_SECOND));
   return t;
 }
 
@@ -363,19 +368,19 @@ function AC_secondsTime(sec) {
  *          cam = source video track index (angle - 1)
  * Returns pieces: { tag: { angle, name } } and the project path to patch.
  */
-function AC_applyMulticam(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
-    var source = AC_activate(p.sourceId);
+function ASW_applyMulticam(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
+    var source = ASW_activate(p.sourceId);
     if (!source) return { ok: false, error: 'I can’t find the sequence I listened to any more. Hit LISTEN again.' };
-    var copy = AC_saveAndClone(source, p.newName);
+    var copy = ASW_saveAndClone(source, p.newName);
     if (copy.error) return { ok: false, error: copy.error };
-    var seq = copy.seq, settings = seq.getSettings(), fps = AC_fps(seq);
+    var seq = copy.seq, settings = seq.getSettings(), fps = ASW_fps(seq);
     var qeTrack = copy.qeSeq.getVideoTrackAt(p.trackIndex);
     var razors = 0;
     for (var s = 1; s < p.segments.length; s++) {
       if (p.segments[s].cam === p.segments[s - 1].cam) continue;
-      qeTrack.razor(AC_timecode(seq, settings, p.segments[s].startFrame));
+      qeTrack.razor(ASW_timecode(seq, settings, p.segments[s].startFrame));
       razors++;
     }
 
@@ -395,7 +400,7 @@ function AC_applyMulticam(payloadJson) {
       try { isNest = clip.projectItem && (clip.projectItem.isSequence() || clip.projectItem.isMulticamClip()); } catch (e) { /* ignore */ }
       if (!isNest) { skipped++; continue; }
       var mid = Math.floor(((clip.start.seconds + clip.end.seconds) / 2) * fps);
-      var seg = AC_findSegment(p.segments, mid);
+      var seg = ASW_findSegment(p.segments, mid);
       if (!seg) { skipped++; continue; }
       try { if (!item.multicamEnabled && item.canDoMulticam()) item.setMulticam(true); } catch (e2) { /* already multicam */ }
       var tag = 'ASWITCH_' + run + '_' + c;
@@ -412,8 +417,8 @@ function AC_applyMulticam(payloadJson) {
 }
 
 // Save and close the project so the panel can write angles into the file.
-function AC_closeProject() {
-  return AC_run(function () {
+function ASW_closeProject() {
+  return ASW_run(function () {
     var path = app.project.path;
     if (!path) return { ok: false, error: 'This project has never been saved, so I can’t set angles in it.' };
     app.project.save();
@@ -427,11 +432,11 @@ function AC_closeProject() {
  * missed still carries its tag, so put its original name back here.
  * payload: { path, sequenceId, names: { tag: originalName } }
  */
-function AC_reopenProject(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
+function ASW_reopenProject(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
     if (!app.openDocument(p.path, true, true, true, true)) return { ok: false, error: 'Premiere could not reopen ' + p.path };
-    var seq = AC_sequenceById(p.sequenceId);
+    var seq = ASW_sequenceById(p.sequenceId);
     if (!seq) return { ok: false, error: 'Reopened the project but could not find the new sequence.' };
     app.project.openSequence(seq.sequenceID);
     app.project.activeSequence = seq;
@@ -451,10 +456,10 @@ function AC_reopenProject(payloadJson) {
 }
 
 // Fast cuts, step 1: export the sequence (or a multicam's source) as FCP XML.
-function AC_exportXml(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
-    var seq = AC_sequenceById(p.sequenceId);
+function ASW_exportXml(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
+    var seq = ASW_sequenceById(p.sequenceId);
     if (!seq) return { ok: false, error: 'Could not find that sequence any more.' };
     try { app.project.save(); } catch (e) { /* not saved yet: exporting doesn't change it */ }
     var ok = seq.exportAsFinalCutProXML(p.path, 1);
@@ -464,9 +469,9 @@ function AC_exportXml(payloadJson) {
 }
 
 // Fast cuts, step 2: import the rebuilt XML as a new sequence and open it.
-function AC_importXml(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
+function ASW_importXml(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
     var before = {};
     for (var i = 0; i < app.project.sequences.numSequences; i++) before[app.project.sequences[i].sequenceID] = true;
     if (!app.project.importFiles([p.path], true, app.project.getInsertionBin(), false)) {
@@ -477,7 +482,7 @@ function AC_importXml(payloadJson) {
       if (!before[app.project.sequences[j].sequenceID]) seq = app.project.sequences[j];
     }
     if (!seq) return { ok: false, error: 'The XML imported but no new sequence appeared.' };
-    seq.name = AC_uniqueSequenceName(p.name, seq.sequenceID);
+    seq.name = ASW_uniqueSequenceName(p.name, seq.sequenceID);
     app.project.openSequence(seq.sequenceID);
     return { ok: true, name: seq.name, sequenceId: seq.sequenceID };
   });
@@ -486,8 +491,8 @@ function AC_importXml(payloadJson) {
 // ---------------------------------------------------------------- episode setup
 
 // Project panel selection as file paths, for "use what I already imported".
-function AC_getProjectSelection() {
-  return AC_run(function () {
+function ASW_getProjectSelection() {
+  return ASW_run(function () {
     var sel = null;
     try { sel = app.getCurrentProjectViewSelection(); } catch (e) { /* older Premiere */ }
     var files = [];
@@ -502,7 +507,7 @@ function AC_getProjectSelection() {
   });
 }
 
-function AC_findItemByPath(bin, path, depth) {
+function ASW_findItemByPath(bin, path, depth) {
   var want = String(path).replace(/\\/g, '/').toLowerCase();
   for (var i = 0; i < bin.children.numItems; i++) {
     var item = bin.children[i];
@@ -510,7 +515,7 @@ function AC_findItemByPath(bin, path, depth) {
     try { mp = item.getMediaPath(); } catch (e) { /* bin */ }
     if (mp && String(mp).replace(/\\/g, '/').toLowerCase() === want) return item;
     if (item.type === ProjectItemType.BIN && depth < 6) {
-      var found = AC_findItemByPath(item, path, depth + 1);
+      var found = ASW_findItemByPath(item, path, depth + 1);
       if (found) return found;
     }
   }
@@ -527,14 +532,14 @@ function AC_findItemByPath(bin, path, depth) {
  * }
  * Layout: V1..Vn cameras (their scratch audio on A1..An), stems on the audio tracks after that.
  */
-function AC_buildEpisode(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
+function ASW_buildEpisode(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
     var root = app.project.rootItem;
     var bin = root.createBin(p.name);
     var all = p.cameras.concat(p.stems), paths = [];
     for (var i = 0; i < all.length; i++) {
-      var existing = AC_findItemByPath(root, all[i].path, 0);
+      var existing = ASW_findItemByPath(root, all[i].path, 0);
       if (existing) all[i].item = existing;
       else paths.push(all[i].path);
     }
@@ -542,17 +547,17 @@ function AC_buildEpisode(payloadJson) {
       return { ok: false, error: 'Premiere could not import the files.' };
     }
     for (var j = 0; j < all.length; j++) {
-      if (!all[j].item) all[j].item = AC_findItemByPath(bin, all[j].path, 0) || AC_findItemByPath(root, all[j].path, 0);
+      if (!all[j].item) all[j].item = ASW_findItemByPath(bin, all[j].path, 0) || ASW_findItemByPath(root, all[j].path, 0);
       if (!all[j].item) return { ok: false, error: 'Imported, but I could not find ' + all[j].path + ' in the project.' };
       // Label before placing: new timeline clips inherit the project item's label.
       if (all[j].label >= 0) { try { all[j].item.setColorLabel(all[j].label); } catch (e) { /* older Premiere */ } }
     }
 
-    var seqName = AC_uniqueSequenceName(p.name);
+    var seqName = ASW_uniqueSequenceName(p.name);
     var seq = app.project.createNewSequenceFromClips(seqName, [p.cameras[0].item], bin);
     if (!seq) return { ok: false, error: 'Premiere could not create a sequence from the first camera.' };
     app.project.openSequence(seq.sequenceID);
-    AC_clearSequence(seq);
+    ASW_clearSequence(seq);
 
     var nc = p.cameras.length, ns = p.stems.length;
     app.enableQE();
@@ -569,16 +574,16 @@ function AC_buildEpisode(payloadJson) {
 
     // Premiere snaps clip starts to frames (upwards). Round to the nearest frame instead so
     // every file lands within half a frame of where the audio sync put it.
-    var fr = AC_fps(seq);
+    var fr = ASW_fps(seq);
     for (var rc = 0; rc < all.length; rc++) all[rc].startSec = Math.round(all[rc].startSec * fr) / fr;
 
     var placed = [];
     for (var c = 0; c < nc; c++) {
-      seq.videoTracks[c].overwriteClip(p.cameras[c].item, AC_secondsTime(p.cameras[c].startSec));
+      seq.videoTracks[c].overwriteClip(p.cameras[c].item, ASW_secondsTime(p.cameras[c].startSec));
       placed.push({ kind: 'camera', index: c, want: p.cameras[c].startSec, track: c });
     }
     for (var s = 0; s < ns; s++) {
-      seq.audioTracks[nc + s].overwriteClip(p.stems[s].item, AC_secondsTime(p.stems[s].startSec));
+      seq.audioTracks[nc + s].overwriteClip(p.stems[s].item, ASW_secondsTime(p.stems[s].startSec));
       placed.push({ kind: 'stem', index: s, want: p.stems[s].startSec, track: nc + s });
     }
     for (var m = 0; m < nc; m++) {
@@ -590,7 +595,7 @@ function AC_buildEpisode(payloadJson) {
     }
 
     // Check every clip landed where the sync said it should (within a frame).
-    var frame = 1 / AC_fps(seq), off = [];
+    var frame = 1 / ASW_fps(seq), off = [];
     for (var q = 0; q < placed.length; q++) {
       var tr = placed[q].kind === 'camera' ? seq.videoTracks[placed[q].track] : seq.audioTracks[placed[q].track];
       var got = tr.clips.numItems ? tr.clips[0].start.seconds : -1;
@@ -601,7 +606,7 @@ function AC_buildEpisode(payloadJson) {
     // Optional multicam edit: the synced sequence nested on V1 with Multi-Camera switched on
     // (angle 1 = V1 of the synced sequence, and so on).
     if (p.multicam) {
-      var edit = app.project.createNewSequenceFromClips(AC_uniqueSequenceName(p.name + ' – Multicam'), [seq.projectItem], bin);
+      var edit = app.project.createNewSequenceFromClips(ASW_uniqueSequenceName(p.name + ' – Multicam'), [seq.projectItem], bin);
       if (!edit) return { ok: false, error: 'Built “' + seq.name + '” but could not create the multicam edit.' };
       app.project.openSequence(edit.sequenceID);
       app.project.activeSequence = edit;
@@ -618,7 +623,7 @@ function AC_buildEpisode(payloadJson) {
   });
 }
 
-function AC_clearSequence(seq) {
+function ASW_clearSequence(seq) {
   var groups = [seq.videoTracks, seq.audioTracks];
   for (var g = 0; g < groups.length; g++) {
     for (var t = 0; t < groups[g].numTracks; t++) {
@@ -629,7 +634,7 @@ function AC_clearSequence(seq) {
 }
 
 // Clip layout of the given video tracks, to prove the original wasn't changed.
-function AC_fingerprint(seq, trackIndexes) {
+function ASW_fingerprint(seq, trackIndexes) {
   var parts = [];
   for (var t = 0; t < trackIndexes.length; t++) {
     var track = seq.videoTracks[trackIndexes[t]];
@@ -644,10 +649,10 @@ function AC_fingerprint(seq, trackIndexes) {
 }
 
 // Sequence markers (best clips). Markers Arrow Switch added before are replaced, not doubled.
-function AC_addMarkers(payloadJson) {
-  return AC_run(function () {
-    var p = AC_parse(payloadJson);
-    var seq = AC_sequenceById(p.sequenceId);
+function ASW_addMarkers(payloadJson) {
+  return ASW_run(function () {
+    var p = ASW_parse(payloadJson);
+    var seq = ASW_sequenceById(p.sequenceId);
     if (!seq) return { ok: false, error: 'Could not find the new sequence to mark.' };
     var old = [], m = seq.markers.getFirstMarker();
     while (m) {
@@ -669,16 +674,16 @@ function AC_addMarkers(payloadJson) {
   });
 }
 
-function AC_setPlayhead(seconds) {
-  return AC_run(function () {
+function ASW_setPlayhead(seconds) {
+  return ASW_run(function () {
     var seq = app.project.activeSequence;
     if (!seq) return { ok: false, error: 'Open a sequence first.' };
-    seq.setPlayerPosition(String(Math.round(Number(seconds) * AC_TICKS_PER_SECOND)));
+    seq.setPlayerPosition(String(Math.round(Number(seconds) * ASW_TICKS_PER_SECOND)));
     return { ok: true };
   });
 }
 
-function AC_findSegment(segs, frame) {
+function ASW_findSegment(segs, frame) {
   var lo = 0, hi = segs.length - 1;
   while (lo <= hi) {
     var mid = (lo + hi) >> 1;
