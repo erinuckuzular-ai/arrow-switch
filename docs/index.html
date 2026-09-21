@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arrow Switch · multicam podcast edits for Premiere Pro</title>
+<meta name="description" content="Arrow Switch syncs your mics to your cameras, listens to who's talking and cuts your multicam podcast in Premiere Pro. Free download for Mac.">
+<meta property="og:title" content="Arrow Switch">
+<meta property="og:description" content="Multicam podcast edits that cut themselves. A Premiere Pro panel run by a rude microphone.">
+<meta property="og:image" content="https://erinuckuzular-ai.github.io/arrow-switch/assets/og.png">
+<meta name="theme-color" content="#cbbaff">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<style>
+  @font-face { font-family: "Lilita One"; src: url(assets/fonts/LilitaOne.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Nunito"; src: url(assets/fonts/Nunito.woff2) format("woff2"); font-weight: 200 1000; font-display: swap; }
+
+  :root {
+    --ink: #3b2a55;
+    --ink-soft: rgba(59, 42, 85, .68);
+    --ink-faint: rgba(59, 42, 85, .45);
+    --bg: #fbf3fb;
+    --lav: #cbbaff;
+    --pink: #ffc9dd;
+    --peach: #ffe3c6;
+    --card: rgba(255, 255, 255, .62);
+    --card-solid: #ffffff;
+    --line: rgba(59, 42, 85, .12);
+    --btn: #6b4fd8;
+    --btn-deep: #3f2a8c;
+    --gold: #f0a93b;
+    --gold-soft: #fff0b8;
+    --green: #3fbf7f;
+    --code-bg: #2a1e3e;
+    --code-ink: #f4ecff;
+    --radius: 26px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #f4ecff;
+      --ink-soft: rgba(244, 236, 255, .72);
+      --ink-faint: rgba(244, 236, 255, .48);
+      --bg: #1b1428;
+      --lav: #4a3a7a;
+      --pink: #5a2d4d;
+      --peach: #4d3629;
+      --card: rgba(255, 255, 255, .07);
+      --card-solid: #271d38;
+      --line: rgba(244, 236, 255, .12);
+      --code-bg: #120c1d;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 500 17px/1.6 "Nunito", ui-rounded, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: "Lilita One", ui-rounded, system-ui, sans-serif; font-weight: 400; line-height: 1.05; margin: 0; letter-spacing: .2px; }
+  h2 { font-size: clamp(34px, 5vw, 52px); }
+  h3 { font-size: 23px; }
+  p { margin: 0; }
+  .wrap { width: min(1080px, 100% - 32px); margin: 0 auto; }
+  section { padding: 96px 0; position: relative; scroll-margin-top: 60px; }
+  #download, #windows { scroll-margin-top: 90px; }
+  .eyebrow {
+    display: inline-block; font-weight: 900; font-size: 13px; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px;
+  }
+  .lede { font-size: 19px; color: var(--ink-soft); max-width: 620px; margin-top: 14px; }
+
+  /* ---------------------------------------------------------------- nav */
+  nav {
+    position: sticky; top: 0; z-index: 20;
+    backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 22px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Lilita One"; font-size: 21px; text-decoration: none; }
+  .brand svg { width: 28px; height: 34px; }
+  nav .links { display: flex; gap: 20px; margin-left: auto; font-weight: 800; font-size: 15px; }
+  nav .links a { text-decoration: none; color: var(--ink-soft); }
+  nav .links a:hover { color: var(--ink); }
+  .nav-dl {
+    text-decoration: none; font-weight: 900; font-size: 14px; letter-spacing: .6px;
+    background: var(--btn); color: #fff; padding: 8px 16px; border-radius: 999px;
+    box-shadow: 0 3px 0 var(--btn-deep);
+  }
+  @media (max-width: 720px) { nav .links { display: none; } .nav-dl { margin-left: auto; } }
+
+  /* ---------------------------------------------------------------- hero */
+  .hero {
+    padding: 72px 0 110px; overflow: hidden;
+    background:
+      radial-gradient(600px 460px at 8% 0%, color-mix(in srgb, var(--lav) 90%, transparent), transparent 70%),
+      radial-gradient(560px 420px at 100% 100%, color-mix(in srgb, var(--pink) 90%, transparent), transparent 70%),
+      linear-gradient(160deg, var(--lav) 0%, var(--pink) 55%, var(--peach) 100%);
+  }
+  .hero .wrap { display: grid; grid-template-columns: 1.15fr .85fr; align-items: center; gap: 40px; }
+  .hero h1 { font-size: clamp(56px, 9vw, 104px); }
+  .hero .tag { font-size: clamp(20px, 2.4vw, 26px); font-weight: 800; margin-top: 16px; max-width: 560px; }
+  .hero .sub { color: var(--ink-soft); margin-top: 14px; max-width: 540px; }
+  .hero-mic { position: relative; justify-self: center; width: min(340px, 80vw); }
+  .bubble {
+    position: absolute; top: -8px; right: -18px; max-width: 230px;
+    background: var(--card-solid); border: 2px solid var(--ink); border-radius: 20px;
+    padding: 12px 16px; font-weight: 800; font-size: 15px; line-height: 1.35;
+    box-shadow: 0 5px 0 var(--ink); transform: rotate(3deg);
+  }
+  .bubble::after {
+    content: ""; position: absolute; left: 34px; bottom: -13px; width: 20px; height: 20px;
+    background: var(--card-solid); border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+    transform: rotate(45deg);
+  }
+  @media (max-width: 820px) {
+    .hero .wrap { grid-template-columns: 1fr; text-align: center; }
+    .hero .tag, .hero .sub { margin-left: auto; margin-right: auto; }
+    .hero-mic { order: -1; width: 200px; margin-bottom: 8px; display: flex; flex-direction: column; align-items: center; }
+    .bubble { position: relative; top: auto; right: auto; max-width: 260px; font-size: 14px; margin-bottom: 22px; transform: rotate(-2deg); }
+    .bubble::after { left: 50%; margin-left: -10px; }
+    .dl-block { justify-items: center; }
+    .dl-notes { justify-content: center; text-align: center; }
+  }
+
+  /* ---------------------------------------------------------------- mascot */
+  .mic { width: 100%; height: auto; overflow: visible; }
+  .mic .bob { animation: bob 3.2s ease-in-out infinite; transform-origin: 60px 120px; }
+  .mic .wave { animation: wave 1.6s ease-in-out infinite; transform-origin: 42px 76px; }
+  .mic .eyes { animation: blink 4.6s infinite; transform-origin: 60px 32px; }
+  .mic .shadow { animation: shadow 3.2s ease-in-out infinite; transform-origin: 60px 132px; }
+  @keyframes bob { 50% { transform: translateY(-7px) rotate(-1.5deg); } }
+  @keyframes shadow { 50% { transform: scaleX(.86); opacity: .7; } }
+  @keyframes wave { 50% { transform: rotate(14deg); } }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
+  @media (prefers-reduced-motion: reduce) { .mic * { animation: none !important; } }
+  /* #og renders the social preview image (docs/assets/og.png). */
+  .og nav, .og .hero .sub, .og .dl-notes + .dl-notes { display: none; }
+  .og .hero { padding: 64px 0; min-height: 100vh; }
+
+  /* ---------------------------------------------------------------- download button */
+  .dl-block { display: grid; gap: 12px; margin-top: 34px; justify-items: start; }
+  .big-dl {
+    display: inline-flex; align-items: center; gap: 18px; text-decoration: none;
+    background: linear-gradient(180deg, #8467f0, var(--btn));
+    color: #fff; border-radius: 26px; padding: 22px 38px 22px 28px;
+    box-shadow: 0 8px 0 var(--btn-deep), 0 22px 40px rgba(63, 42, 140, .35);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .big-dl:hover { transform: translateY(-2px); box-shadow: 0 10px 0 var(--btn-deep), 0 28px 48px rgba(63, 42, 140, .4); }
+  .big-dl:active { transform: translateY(6px); box-shadow: 0 2px 0 var(--btn-deep), 0 10px 20px rgba(63, 42, 140, .3); }
+  .big-dl:focus-visible { outline: 4px solid var(--gold); outline-offset: 5px; }
+  .big-dl .arrow {
+    width: 58px; height: 58px; border-radius: 50%; background: rgba(255,255,255,.18);
+    display: grid; place-items: center; flex: none;
+  }
+  .big-dl .arrow svg { width: 30px; height: 30px; animation: nudge 1.8s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: translateY(4px); } }
+  .big-dl .label { font-family: "Lilita One"; font-size: clamp(30px, 4vw, 40px); line-height: 1; letter-spacing: .5px; }
+  .big-dl .meta { display: block; white-space: nowrap; font-family: "Nunito"; font-weight: 800; font-size: 14px; opacity: .85; margin-top: 6px; letter-spacing: .2px; }
+  .dl-notes { font-size: 14px; font-weight: 700; color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .dl-notes span::before { content: "✓ "; color: var(--green); font-weight: 900; }
+  .dl-notes a { font-weight: 800; }
+
+  /* ---------------------------------------------------------------- features */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 48px; }
+  .feature {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 24px;
+  }
+  .feature .ico { font-size: 30px; line-height: 1; margin-bottom: 14px; }
+  .feature p { color: var(--ink-soft); margin-top: 8px; font-size: 16px; }
+  @media (max-width: 900px) { .features { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 580px) { .features { grid-template-columns: 1fr; } }
+
+  /* ---------------------------------------------------------------- screenshots */
+  .shots-sec { background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--lav) 35%, transparent) 40%, transparent); }
+  .shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 44px; }
+  .shot { margin: 0; }
+  .frame {
+    position: relative; aspect-ratio: 380 / 600; overflow: hidden; border-radius: 22px;
+    border: 1px solid var(--line); background: var(--card-solid);
+    box-shadow: 0 18px 40px rgba(59, 42, 85, .16);
+  }
+  .frame img {
+    position: absolute; left: 0; top: 0; width: 100%; height: auto; display: block;
+    transition: top 6s ease-in-out, transform 6s ease-in-out;
+  }
+  .frame:hover img, .frame:focus-visible img { top: 100%; transform: translateY(-100%); }
+  .frame:focus-visible { outline: 3px solid var(--btn); outline-offset: 3px; }
+  .shot figcaption { font-weight: 800; font-size: 15px; margin-top: 12px; }
+  .shot figcaption small { display: block; font-weight: 600; color: var(--ink-soft); font-size: 14px; }
+  .hint { color: var(--ink-faint); font-weight: 700; font-size: 14px; margin-top: 18px; }
+  @media (max-width: 900px) { .shots { grid-template-columns: 1fr 1fr; } }
+
+  /* ---------------------------------------------------------------- install steps */
+  .steps { counter-reset: step; display: grid; gap: 16px; margin-top: 44px; }
+  .step {
+    display: grid; grid-template-columns: 64px 1fr; gap: 20px; align-items: start;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px;
+  }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--btn); color: #fff; font-family: "Lilita One"; font-size: 26px;
+    box-shadow: 0 4px 0 var(--btn-deep);
+  }
+  .step p { color: var(--ink-soft); margin-top: 6px; }
+  .step kbd, .path {
+    font: 800 14px/1 "Nunito"; background: var(--card-solid); border: 1px solid var(--line);
+    border-bottom-width: 3px; border-radius: 8px; padding: 4px 8px; color: var(--ink); white-space: nowrap;
+  }
+  .step .inline-dl { font-weight: 900; }
+  @media (max-width: 560px) { .step { grid-template-columns: 1fr; gap: 12px; } }
+
+  .alt { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
+  .alt-card { background: var(--card); border: 1px dashed var(--line); border-radius: var(--radius); padding: 24px; }
+  .alt-card p { color: var(--ink-soft); margin-top: 8px; font-size: 16px; }
+  .code {
+    position: relative; margin-top: 14px; background: var(--code-bg); color: var(--code-ink);
+    border-radius: 14px; padding: 16px 92px 16px 16px; font: 600 13.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .copy {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font: 900 12px "Nunito"; letter-spacing: .8px; text-transform: uppercase; cursor: pointer;
+    background: var(--gold-soft); color: #3b2a55; border: 0; border-radius: 999px; padding: 7px 12px;
+  }
+  @media (max-width: 760px) { .alt { grid-template-columns: 1fr; } }
+
+  /* ---------------------------------------------------------------- how to use */
+  .use { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 44px; }
+  .use-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
+  .use-card ol { margin: 16px 0 0; padding-left: 22px; color: var(--ink-soft); display: grid; gap: 10px; }
+  .use-card li::marker { font-weight: 900; color: var(--ink); }
+  .use-card b { color: var(--ink); }
+  .modes { display: grid; gap: 8px; margin-top: 14px; }
+  .mode { display: grid; grid-template-columns: 138px 1fr; gap: 12px; font-size: 15px; color: var(--ink-soft); }
+  .mode b { color: var(--ink); }
+  @media (max-width: 820px) { .use { grid-template-columns: 1fr; } .mode { grid-template-columns: 1fr; gap: 0; } }
+
+  /* ---------------------------------------------------------------- faq */
+  .faq { margin-top: 40px; display: grid; gap: 12px; max-width: 820px; }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 0 24px; }
+  summary {
+    cursor: pointer; list-style: none; font-weight: 900; font-size: 18px; padding: 20px 0;
+    display: flex; justify-content: space-between; gap: 16px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; font-family: "Lilita One"; font-size: 26px; line-height: .9; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { color: var(--ink-soft); padding-bottom: 20px; }
+  details p + p { margin-top: -8px; }
+
+  /* ---------------------------------------------------------------- final cta + footer */
+  .cta {
+    text-align: center; overflow: hidden;
+    background: linear-gradient(160deg, var(--lav) 0%, var(--pink) 55%, var(--peach) 100%);
+  }
+  .cta .mic-small { width: 120px; margin: 0 auto 16px; }
+  .cta .dl-block { justify-items: center; }
+  footer { padding: 36px 0 48px; font-size: 14px; color: var(--ink-faint); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 26px; justify-content: space-between; }
+  footer a { font-weight: 800; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<!-- Shared mascot parts. Every <use href="#mic"> below draws the same microphone. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="gMetal" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#d9dcea"/><stop offset="1" stop-color="#8f94ad"/></radialGradient>
+    <radialGradient id="gHandle" cx="30%" cy="20%" r="95%"><stop offset="0" stop-color="#8b78b8"/><stop offset="1" stop-color="#3b2a55"/></radialGradient>
+    <radialGradient id="gGold" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff0b8"/><stop offset="1" stop-color="#f0a93b"/></radialGradient>
+    <pattern id="pGrille" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="none"/><path d="M0 0 H6 M0 0 V6" stroke="#5b5f78" stroke-width="1.1" opacity=".55"/>
+    </pattern>
+    <symbol id="mic-body" viewBox="-6 -12 132 152" overflow="visible">
+      <g stroke-linecap="round" stroke-linejoin="round">
+        <path d="M78 76 Q96 84 98 98" stroke="#3b2a55" stroke-width="6" fill="none"/>
+        <circle cx="98" cy="100" r="5" fill="#3b2a55"/>
+        <path fill="url(#gHandle)" d="M44 72 L50 118 Q60 126 70 118 L76 72 Z"/>
+        <rect x="55" y="90" width="10" height="14" rx="4" fill="#2a1e3e"/>
+        <circle cx="60" cy="94" r="2.4" fill="#3fbf7f"/>
+        <rect x="38" y="62" width="44" height="14" rx="7" fill="url(#gGold)"/>
+        <circle cx="60" cy="34" r="32" fill="url(#gMetal)"/>
+        <circle cx="60" cy="34" r="32" fill="url(#pGrille)"/>
+        <ellipse cx="46" cy="16" rx="10" ry="5" fill="#fff" opacity=".7" transform="rotate(-30 46 16)"/>
+        <ellipse cx="38" cy="45" rx="6" ry="3.5" fill="#ff9ec9" opacity=".7"/>
+        <ellipse cx="82" cy="45" rx="6" ry="3.5" fill="#ff9ec9" opacity=".7"/>
+      </g>
+    </symbol>
+    <!-- Brows and grin go on top of the eyes, so they're their own layer. -->
+    <symbol id="mic-face" viewBox="-6 -12 132 152" overflow="visible">
+      <g stroke="#3b2a55" fill="none" stroke-linecap="round">
+        <path d="M37 13 L54 19 M83 13 L66 19" stroke-width="4"/>
+        <path d="M50 50 Q62 56 72 46" stroke-width="3.5"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg viewBox="16 -6 88 136" aria-hidden="true"><use href="#mic-body"/><circle cx="49" cy="33" r="6" fill="#3b2a55"/><circle cx="71" cy="33" r="6" fill="#3b2a55"/></svg>
+      Arrow Switch
+    </a>
+    <div class="links">
+      <a href="#what">What it does</a>
+      <a href="#install">Install</a>
+      <a href="#use">How to use</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a class="nav-dl" href="#download" data-dl>DOWNLOAD</a>
+  </div>
+</nav>
+
+<!-- ================================================================ hero -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Free panel for Adobe Premiere Pro</span>
+      <h1>Arrow Switch</h1>
+      <p class="tag">Multicam podcast edits that cut themselves.</p>
+      <p class="sub">
+        Drop in your cameras and mics. Arrow Switch syncs them, listens to who's talking,
+        and cuts to their camera, with the wide shot for cross-talk. An hour-long episode
+        takes seconds. It's run by a talking microphone, and it will be rude to you.
+      </p>
+      <div class="dl-block" id="download">
+        <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.0/Arrow-Switch-1.6.0.dmg" data-dl>
+          <span class="arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13M6 11l6 6 6-6M5 21h14"/></svg>
+          </span>
+          <span>
+            <span class="label">DOWNLOAD</span>
+            <span class="meta" data-dl-meta>For Mac · version 1.6.0 · 180 MB</span>
+          </span>
+        </a>
+        <div class="dl-notes">
+          <span>Free</span>
+          <span>Signed &amp; notarised by Apple</span>
+          <span>No admin password</span>
+        </div>
+        <div class="dl-notes" style="font-weight:600">
+          Premiere Pro 2022 or newer · macOS 13 or newer · <a href="#windows">On Windows?</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-mic">
+      <div class="bubble">I do the cutting. You do the taking credit.</div>
+      <svg class="mic" viewBox="-6 -12 132 152" role="img" aria-label="Arrow Switch's mascot, a cartoon microphone, waving">
+        <ellipse class="shadow" cx="60" cy="132" rx="30" ry="5" fill="rgba(59,42,85,.2)"/>
+        <g class="bob">
+          <g class="wave">
+            <path d="M42 76 Q24 70 18 54" stroke="#3b2a55" stroke-width="6" fill="none" stroke-linecap="round"/>
+            <circle cx="17" cy="51" r="6" fill="#3b2a55"/>
+          </g>
+          <use href="#mic-body"/>
+          <g class="eyes">
+            <ellipse cx="48" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+            <ellipse cx="72" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+            <circle cx="50" cy="34" r="4" fill="#3b2a55"/><circle cx="74" cy="34" r="4" fill="#3b2a55"/>
+          </g>
+          <use href="#mic-face"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ what it does -->
+<section id="what">
+  <div class="wrap">
+    <span class="eyebrow">What it does</span>
+    <h2>You bring the footage.<br>It does the boring bit.</h2>
+    <p class="lede">
+      Arrow Switch lives in a panel inside Premiere. It works on a copy of your sequence,
+      so your original is never touched.
+    </p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="ico">🎧</div>
+        <h3>Syncs everything</h3>
+        <p>Cameras and mics line up by their audio, land in a bin, and get colour-labelled per person. It works out which mic goes with which camera from the file names.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">✂️</div>
+        <h3>Cuts to whoever's talking</h3>
+        <p>It listens to every mic and cuts to that person's camera. Cross-talk and long monologues go to the wide shot.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🎛</div>
+        <h3>Real multicam</h3>
+        <p>On multicam sequences it sets the real angle on every cut, so you can still re-switch any shot by hand afterwards.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🎭</div>
+        <h3>Reaction shots</h3>
+        <p>A quick cut to whoever laughs or goes "no way" while someone else is talking, then straight back. You decide how often.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🤫</div>
+        <h3>Trims dead air</h3>
+        <p>Takes out silences longer than you set, keeping a breath either side. Nobody's words get trimmed.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🔥</div>
+        <h3>Finds the best clips</h3>
+        <p>Flags the liveliest 30 to 75 second stretches and drops markers on them, ready for socials.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ screenshots -->
+<section class="shots-sec" id="look">
+  <div class="wrap">
+    <span class="eyebrow">Have a look</span>
+    <h2>The panel</h2>
+    <div class="shots">
+      <figure class="shot">
+        <div class="frame" tabindex="0"><img src="assets/shots/setup.jpg" alt="The Set up tab: camera and mic files matched to people, ready to sync" loading="lazy"></div>
+        <figcaption>Set up &amp; sync<small>Drop in files, press one button</small></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame" tabindex="0"><img src="assets/shots/cut.jpg" alt="The Cut tab: presets, extras, a preview strip of the edit and the best clips list" loading="lazy"></div>
+        <figcaption>Cut<small>Preview the edit before it's made</small></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame" tabindex="0"><img src="assets/shots/multicam.jpg" alt="The Cut tab on a multicam sequence" loading="lazy"></div>
+        <figcaption>Multicam<small>Live angles you can still flip</small></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame" tabindex="0"><img src="assets/shots/dark.jpg" alt="The panel in dark mode" loading="lazy"></div>
+        <figcaption>Dark mode<small>For the 2am edit</small></figcaption>
+      </figure>
+    </div>
+    <p class="hint">Hover a screenshot to scroll through the whole panel.</p>
+  </div>
+</section>
+
+<!-- ================================================================ install -->
+<section id="install">
+  <div class="wrap">
+    <span class="eyebrow">Install</span>
+    <h2>Up and running in a minute</h2>
+    <p class="lede">No password, no System Settings, no dragging things into folders.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div>
+          <h3>Download it</h3>
+          <p>Hit the <a class="inline-dl" href="#download" data-dl>download button</a>. You get <span class="path">Arrow-Switch-1.6.0.dmg</span> in your Downloads folder.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Open the disk image</h3>
+          <p>Double-click the <span class="path">.dmg</span>. A window opens with two things in it: the installer, and a folder called <b>Everything else</b>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Double-click Install Arrow Switch</h3>
+          <p>Press the big <b>INSTALL IT!</b> button. If Premiere is open, the installer offers to quit it for you first. It takes a few seconds.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Open it in Premiere</h3>
+          <p>Start Premiere Pro, then go to <span class="path">Window</span> → <span class="path">Extensions</span> → <span class="path">Arrow Switch</span>. Dock the panel wherever you like.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="alt">
+      <div class="alt-card">
+        <h3>Prefer Terminal?</h3>
+        <p>This downloads and installs the latest version for your user. Same result, no clicking.</p>
+        <div class="code"><span id="cmd">curl -fsSL https://raw.githubusercontent.com/erinuckuzular-ai/arrow-switch/main/install.sh | bash</span><button class="copy" data-copy="#cmd">Copy</button></div>
+      </div>
+      <div class="alt-card" id="windows">
+        <h3>On Windows?</h3>
+        <p>
+          Open the disk image's <b>Everything else</b> folder and take <span class="path">Arrow Switch.zxp</span>.
+          Install it with a ZXP installer such as <a href="https://aescripts.com/learn/zxp-installer/">aescripts ZXP Installer</a>,
+          then put <span class="path">ffmpeg.exe</span> in the extension's <span class="path">bin</span> folder.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ how to use -->
+<section id="use" class="shots-sec">
+  <div class="wrap">
+    <span class="eyebrow">How to use it</span>
+    <h2>Your first episode</h2>
+    <p class="lede">Two tabs, one after the other. <span class="path">⌘ Enter</span> always does the next step.</p>
+
+    <div class="use">
+      <div class="use-card">
+        <h3>1 · Set up</h3>
+        <ol>
+          <li>Drop in the camera files (with their master audio) and each person's mic file.</li>
+          <li>Check the guesses. A file called <b>wide</b>, <b>WS</b> or <b>master</b> is the wide shot, and <b>Chloe.wav</b> goes with <b>CamChloe.mp4</b>.</li>
+          <li>Press <b>SYNC &amp; BUILD</b>. Everything is synced, imported, labelled and put in a sequence ready to cut. Tick <b>Also make a multicam edit</b> if you want a multicam version too.</li>
+        </ol>
+      </div>
+      <div class="use-card">
+        <h3>2 · Cut</h3>
+        <ol>
+          <li>Check who's who. It guesses from the track names.</li>
+          <li>Pick a preset (<b>Sleepy</b>, <b>Chatty</b> or <b>Chaotic</b>), or tweak the knobs and save your own.</li>
+          <li>Press <b>LISTEN!</b> and check the preview strip. Click it to jump to that moment in Premiere.</li>
+          <li>Pick how you want the edit and press <b>CUT IT!</b></li>
+        </ol>
+        <div class="modes">
+          <div class="mode"><b>⚡ Fast cuts</b><span>Real cuts, unused angles gone. Seconds.</span></div>
+          <div class="mode"><b>⚡ Fast hide</b><span>Every angle kept, switched off when not on screen.</span></div>
+          <div class="mode"><b>🎛 Multicam</b><span>Real angles on a multicam clip, still re-switchable.</span></div>
+          <div class="mode"><b>🐢 Classic</b><span>Same as Fast hide, done the slow way inside Premiere.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ faq -->
+<section id="faq">
+  <div class="wrap">
+    <span class="eyebrow">Questions</span>
+    <h2>Things people ask</h2>
+    <div class="faq">
+      <details>
+        <summary>Is it safe to open?</summary>
+        <p>Yes. The disk image, the installer app and the package are all signed with an Apple Developer ID and notarised by Apple, so macOS opens them without a warning. The code is open source on GitHub.</p>
+      </details>
+      <details>
+        <summary>Will it mess up my edit?</summary>
+        <p>No. Arrow Switch saves your project first and always builds a new sequence called <b>&lt;your sequence&gt; – Arrow Switch</b>. Your original sequence is never changed.</p>
+        <p>The Multicam mode briefly closes and reopens your project to set the angles. It keeps a backup copy in <span class="path">~/Library/Caches/Arrow Switch/project-backups</span> first.</p>
+      </details>
+      <details>
+        <summary>Which versions of Premiere does it work with?</summary>
+        <p>Premiere Pro 2022 (version 22) and newer. The installer app needs macOS 13 Ventura or newer.</p>
+      </details>
+      <details>
+        <summary>What if a camera started late or stopped early?</summary>
+        <p>Arrow Switch never cuts to a camera that has no footage at that moment. Those shots go to the wide, or to whichever camera is rolling.</p>
+      </details>
+      <details>
+        <summary>Why is the microphone being rude to me?</summary>
+        <p>It's got opinions. If a client is watching over your shoulder, flip the tone button in the top right to <b>nice</b>.</p>
+      </details>
+      <details>
+        <summary>Why does it ask for an admin password?</summary>
+        <p>It shouldn't. <b>Install Arrow Switch</b> installs for your user only and never asks. The <span class="path">.pkg</span> in the <b>Everything else</b> folder installs for everyone on the Mac, so that one does ask.</p>
+      </details>
+      <details>
+        <summary>How do I update?</summary>
+        <p>Download the new version and run the installer again. It replaces the old panel, and the button says <b>UPDATE IT!</b> instead.</p>
+      </details>
+      <details>
+        <summary>How do I uninstall it?</summary>
+        <p>Open the disk image's <b>Everything else</b> folder and double-click <span class="path">Uninstall Arrow Switch.command</span>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ final cta -->
+<section class="cta">
+  <div class="wrap">
+    <svg class="mic mic-small" viewBox="-6 -12 132 152" aria-hidden="true">
+      <g stroke-linecap="round">
+        <path d="M42 74 Q20 56 16 30" stroke="#3b2a55" stroke-width="6" fill="none"/>
+        <circle cx="16" cy="27" r="6" fill="#3b2a55"/>
+      </g>
+      <use href="#mic-body"/>
+      <ellipse cx="48" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+      <ellipse cx="72" cy="32" rx="8" ry="9" fill="#fff" stroke="#3b2a55" stroke-width="2.5"/>
+      <circle cx="50" cy="34" r="4" fill="#3b2a55"/><circle cx="74" cy="34" r="4" fill="#3b2a55"/>
+      <use href="#mic-face"/>
+    </svg>
+    <h2>Go on then.</h2>
+    <p class="lede" style="margin-left:auto;margin-right:auto">Your next episode could be cut before your coffee's cool.</p>
+    <div class="dl-block">
+      <a class="big-dl" href="https://github.com/erinuckuzular-ai/arrow-switch/releases/download/v1.6.0/Arrow-Switch-1.6.0.dmg" data-dl>
+        <span class="arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13M6 11l6 6 6-6M5 21h14"/></svg>
+        </span>
+        <span>
+          <span class="label">DOWNLOAD</span>
+          <span class="meta" data-dl-meta>For Mac · version 1.6.0 · 180 MB</span>
+        </span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Arrow Switch is free and open source (MIT).</span>
+    <span>
+      <a href="https://github.com/erinuckuzular-ai/arrow-switch">GitHub</a> ·
+      <a href="https://github.com/erinuckuzular-ai/arrow-switch/releases">All releases</a> ·
+      <a href="https://github.com/erinuckuzular-ai/arrow-switch/releases/latest">ffmpeg source (GPLv3)</a>
+    </span>
+    <span>Not affiliated with Adobe. Premiere Pro is a trademark of Adobe.</span>
+  </div>
+</footer>
+
+<script>
+  if (location.hash === '#og') document.documentElement.classList.add('og');
+
+  // Point every download link at the newest release's .dmg. The hard-coded
+  // v1.6.0 link stays if GitHub's API can't be reached.
+  (function () {
+    var API = 'https://api.github.com/repos/erinuckuzular-ai/arrow-switch/releases/latest';
+    fetch(API, { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rel) {
+        if (!rel) return;
+        var dmg = (rel.assets || []).filter(function (a) { return /\.dmg$/i.test(a.name); })[0];
+        if (!dmg) return;
+        var version = String(rel.tag_name || '').replace(/^v/, '');
+        var mb = Math.round(dmg.size / 1048576);
+        document.querySelectorAll('a.big-dl').forEach(function (a) { a.href = dmg.browser_download_url; });
+        document.querySelectorAll('[data-dl-meta]').forEach(function (el) {
+          el.textContent = 'For Mac · version ' + version + ' · ' + mb + ' MB';
+        });
+        document.querySelectorAll('.path').forEach(function (el) {
+          if (/^Arrow-Switch-.*\.dmg$/.test(el.textContent)) el.textContent = dmg.name;
+        });
+      })
+      .catch(function () {});
+  })();
+
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = document.querySelector(btn.dataset.copy).textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1600);
+      });
+    });
+  });
+</script>
+</body>
+</html>

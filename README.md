@@ -1,6 +1,7 @@
 # Arrow Switch
 
 Automatic multicam podcast editing for Adobe Premiere Pro (2022 and newer).
+**Website and download: https://erinuckuzular-ai.github.io/arrow-switch/**
 Arrow Switch syncs everyone's mic to the cameras, listens to who is talking, and cuts
 between their cameras — with wide shots for cross-talk and long monologues. It is run by a
 talking microphone, and it will be rude to you (there's a nice mode).
@@ -90,6 +91,7 @@ extension/            the CEP panel that ships to users
 installer/app/        the installer app (SwiftUI, built by scripts/build-installer-app.sh)
 installer/art/        background and icon artwork, rendered by scripts/make-installer-art.sh
 installer/            pkg scripts, installer pages, uninstaller, read me
+docs/                 the website (GitHub Pages, served from main /docs) + README screenshots
 test/                 node --test suites
 build.sh              tests -> universal ffmpeg -> signed ZXP -> .pkg -> .dmg
 ```
