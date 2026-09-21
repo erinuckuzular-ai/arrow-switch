@@ -1275,7 +1275,7 @@
 
   // Cameras and mics are matched by name, never by the order files arrived in:
   // "wide/WS/master" is the wide, and a mic goes to the camera that shares its name
-  // (Chloe.wav -> CamChloe.mp4). Only what's left over falls back to order.
+  // (Susie.wav -> CamSusie.mp4). Only what's left over falls back to order.
   function assignSetupRoles() {
     var cams = cameras(), mics = stems();
     var byName = function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0; };
@@ -1781,10 +1781,10 @@
     AC_setPlayhead: function () { return { ok: true }; },
     AC_addMarkers: function (p) { return { ok: true, added: JSON.parse(p).markers.length }; },
     AC_getProjectSelection: function () { return { ok: true, files: [] }; },
-    AC_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Chloe x Grace', misplaced: [] }; },
+    AC_buildEpisode: function () { return { ok: true, sequenceId: 'demo', name: 'EP 143 Susie x Grace', misplaced: [] }; },
     fakeFiles: function () {
-      return ['/Volumes/Shoot/EP143/WIDE_A001.mov', '/Volumes/Shoot/EP143/CAM_B_Chloe.mov', '/Volumes/Shoot/EP143/CAM_C_Grace.mov',
-        '/Volumes/Shoot/EP143/Chloe.wav', '/Volumes/Shoot/EP143/Grace.wav'];
+      return ['/Volumes/Shoot/EP143/WIDE_A001.mov', '/Volumes/Shoot/EP143/CAM_B_Susie.mov', '/Volumes/Shoot/EP143/CAM_C_Grace.mov',
+        '/Volumes/Shoot/EP143/Susie.wav', '/Volumes/Shoot/EP143/Grace.wav'];
     },
     probe: function (p) {
       var video = /\.mov$/.test(p);

@@ -36,7 +36,7 @@ Restart Premiere Pro, then open **Window → Extensions → Arrow Switch**.
    ready for 🎛 Multicam.
 
    Cameras and mics are matched by name, not the order you add them: a file called
-   wide/WS/master is the wide, and `Chloe.wav` goes with `CamChloe.mp4`. Check the guesses in the list.
+   wide/WS/master is the wide, and `Susie.wav` goes with `CamSusie.mp4`. Check the guesses in the list.
 
 **Cut it** (Cut tab)
 1. Check who's who (it guesses from the tracks).
